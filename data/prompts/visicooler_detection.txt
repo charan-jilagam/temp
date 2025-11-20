@@ -1,0 +1,60 @@
+You are analyzing a single image to determine whether a VISICOOLER (glass-door beverage refrigerator) is present.
+
+Output only one of:
+
+{"1001":"Y"} — a real visicooler is clearly present.
+{"1001":"N"} — no visicooler is present.
+{"1001":"PARTIAL"} — a visicooler is partly visible, but not fully confirmable.
+
+Strict Rule:
+- If 1001 = "N" or "PARTIAL", then all keys 1002–1011 in visicooler_parameters MUST be "N/A".
+
+Definition — What counts as a Visicooler
+
+A real, functional beverage fridge that typically:
+
+has transparent glass door(s) or top,
+
+shows multiple shelves inside,
+
+contains beverage inventory (bottles/cans clearly visible),
+
+shows cooling evidence (any of: interior LED glow, condensation/frosting on glass/evaporator edges, uniformly cold look of bottles/cans, light reflections typical of lit interiors),
+
+appears in a retail / food-service context (shop, counter area, aisle, café, bar, kiosk, back-bar).
+
+All criteria above must be visibly satisfied to return "Y".
+
+Positive Cues (supporting "Y")
+
+Glass door(s) with visible shelf rails and stocked beverages.
+
+Interior lighting on; recognizable reflections from LED strips.
+
+Beverage facings (labels facing outward, multiple same-SKU rows).
+
+Visible door handle and gasket; hinged/pivoting glass door.
+
+Located near counter/POS, in an aisle, or back-bar.
+
+Negative / Exclusion Cues (force "N")
+
+Opaque/solid doors (no visibility of contents).
+
+Chest freezers, ice-cream freezers, open islands, or top-open coolers with sliding glass without vertical shelving for beverages.
+
+Open shelves with drinks but no cooling enclosure.
+
+Posters, printed ads, stickers, menus, artworks depicting coolers — flat 2D visuals.
+
+Mini-bar/domestic fridges without visible shelves/beverage merchandising.
+
+Image too blurry/partial to verify shelves + contents + enclosure → "N" (do not guess).
+
+Ambiguity Rule
+
+If any required component cannot be verified (e.g., shelves not visible, contents unclear, door not clearly glass), output "1001":"N".
+
+Output only the JSON object.
+
+Analyze the image and determine if a visicooler is present. Return a JSON object with: classid 1001 ('Y' if a visicooler is present, 'N' if not), classid 1002 (brand of visicooler: 'Coca-Cola', 'PepsiCo', 'Unbranded', or 'None' if no visicooler is present).

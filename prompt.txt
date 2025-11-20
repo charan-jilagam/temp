@@ -1,0 +1,241 @@
+Analyze the provided image of a visicooler and return a JSON object with the following class IDs and their corresponding values based on the image content. Ensure the keys are exactly as specified below, matching the class IDs, and avoid using any other keys. Return only valid JSON.
+
+Class ID 1001: Visicooler - Visicooler available
+
+Identify if a Visicooler is available in the provided image. A Visicooler is a refrigerated display unit (cooler or fridge) used for storing and showcasing beverages, typically with glass doors for visibility, often branded by companies like Coca-Cola or Pepsi, and placed in retail shops, stores, or outlets. Look for any upright or chest-style cooler with visible beverages, shelving, and cooling elements (e.g., lights, condensation, or branding). Return 'Y' if a Visicooler is clearly visible and available in the scene, 'N' if no such cooler is present, or 'N/A' if the image does not show any store interior, retail area, or relevant display sections. Do not guess or assume.
+ 
+Class ID 1002: Visicooler - Brand of Visicooler
+
+Assuming a Visicooler is confirmed available (from class ID 1001), identify the brand of the Visicooler. Examine visible logos, colors, text, or designs on the cooler (e.g., red and white with 'Coca-Cola' logo for Coca-Cola, blue with 'Pepsi' for Pepsi). Common brands include Coca-Cola, Pepsi, or others like generic/unbranded. Return the brand name (e.g., 'Coca-Cola', 'Pepsi', 'Unbranded') if clearly identifiable. Return 'Unknown' if branding is visible but unclear, or 'N/A' if no Visicooler is present or the image lacks visible branding details. Do not guess or assume.
+ 
+Class ID 1004: Coco-Cola Company visicooler - Visicooler working
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), determine if the Visicooler is working (operational). Look for signs of functionality such as interior lights on, condensation on glass (indicating cooling), stocked cold beverages without spoilage, or power indicators. Absence of these or visible damage/unplugged state suggests not working. Return 'Y' if clearly working, 'N' if not working, or 'N/A' if no Coca-Cola Visicooler is present or the image lacks details to assess functionality (e.g., no close-up or interior view). Do not guess or assume.
+ 
+Class ID 1005: Coco-Cola Company visicooler - Visicooler pics allowed
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), determine if taking pictures (pics) of the Visicooler is allowed. This may be indicated by visible signs in the image (e.g., 'No Photography' stickers on or near the cooler, store policies posted, or staff gestures if present). If no prohibitive signs are visible, assume allowed unless explicitly forbidden. Return 'Y' if pics appear allowed (no restrictions visible), 'N' if restrictions are clearly shown, or 'N/A' if no Coca-Cola Visicooler is present or the image does not show any signage or context related to photography permissions. Do not guess or assume.
+ 
+Class ID 1006: Coco-Cola Company visicooler - Visicooler visibility from street
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), determine if the Visicooler is visible from the street. Look for the cooler's placement relative to windows, doors, or open storefronts in the image, considering if it can be seen from outside (e.g., near a window with clear line of sight). Return 'Y' if clearly visible from street based on positioning, 'N' if obstructed or placed deep inside, or 'N/A' if no Coca-Cola Visicooler is present or the image does not include exterior views or street context. Do not guess or assume.
+ 
+Class ID 1007: Coco-Cola Company visicooler - Visicooler visibility in shop Partial/Fully/Not visible
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), assess the Visicooler's visibility within the shop. Evaluate based on its placement: fully visible if prominently displayed without obstructions, partially visible if partially blocked by shelves/items, or not visible if hidden. Look for angles, lighting, and shop layout in the image. Return 'Fully' if completely unobstructed and prominent, 'Partial' if somewhat blocked, 'Not visible' if hidden, or 'N/A' if no Coca-Cola Visicooler is present or the image does not show shop interior details. Do not guess or assume.
+ 
+Class ID 1008: Coco-Cola Company visicooler - Visicooler accessible
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), determine if the Visicooler is accessible (e.g., for customers to open and retrieve beverages). Look for unlocked doors, no barriers, or signs indicating customer use; inaccessibility might show locks, 'Staff Only' signs, or physical blocks. Return 'Y' if clearly accessible, 'N' if not, or 'N/A' if no Coca-Cola Visicooler is present or the image lacks details on access (e.g., no view of doors or signs). Do not guess or assume.
+ 
+Class ID 1009: Coco-Cola Company visicooler - Brand shelf strip
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), identify if Coca-Cola brand shelf strips are present. These are branded strips or labels along the edges of shelves inside the cooler, featuring Coca-Cola logos or red/white colors. Look for visible strips on shelf fronts. Return 'Y' if at least one Coca-Cola branded shelf strip is clearly visible, 'N' if shelves are present but lack strips, or 'N/A' if no Coca-Cola Visicooler is present, interior not visible, or no shelves shown. Do not guess or assume.
+ 
+Class ID 1010: Coco-Cola Company visicooler - As per planogram
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), determine if the Visicooler's product arrangement adheres to the Coca-Cola planogram (a predefined layout for product placement). Look for specific Coca-Cola products arranged as per typical planogram standards (e.g., Coke, Sprite, Fanta in designated positions, with proper facing and stock levels). Compare visible product placement to expected Coca-Cola layout (e.g., uniform branding, no rival products unless specified). Return 'Y' if the arrangement clearly matches the planogram, 'N' if it deviates (e.g., incorrect products or placement), or 'N/A' if no Coca-Cola Visicooler is present, interior not visible, or planogram details cannot be assessed. Do not guess or assume.
+ 
+Class ID 1011: Coco-Cola Company visicooler - Cooler Purity
+
+Assuming a Coca-Cola Company Visicooler is confirmed available (from class ID 1001 and branded as Coca-Cola in class ID 1002), assess the cooler purity based on contents. Purity means the cooler contains only Coca-Cola products (e.g., Coke, Sprite, Fanta) and no rival or non-Coca-Cola items. Look inside for product labels and arrangement. Return '100% pure' if exclusively Coca-Cola products, 'Impure' if mixed with other brands/items, or 'N/A' if no Coca-Cola Visicooler is present or interior contents are not visible. Do not guess or assume.
+
+Class ID 1018: Other Elements branded by Coca-Cola - Bottle Neck Ringer
+
+Identify Bottle Neck Ringers, which are small, circular, or collar-shaped plastic tags attached to the necks of beverage bottles. They feature Coca-Cola branding, such as the logo, red and white colors, or promotional text. Look for bottles on tables, counters, or shelves with these distinctive tags. Return 'Y' if at least one bottle with a Coca-Cola branded neck ringer is clearly visible, 'N' if bottles are present but lack Coca-Cola branded ringers, or 'N/A' if no bottles are visible in the image. Do not guess or assume.
+ 
+Class ID 1019: Other Elements branded by Coca-Cola - Poster
+
+Identify Posters, which are flat, printed promotional materials displayed on walls, glass surfaces, or freestanding boards. They feature Coca-Cola imagery (e.g., bottles, cans, logos), slogans, or vibrant red and white designs. Typically rectangular and eye-catching, they are found in dining areas, near entrances, or on exterior windows. Return 'Y' if a Coca-Cola branded poster is clearly visible, 'N' if no such posters are present, or 'N/A' if the image does not show walls, glass, or relevant display areas. Do not guess or assume.
+ 
+Class ID 1020: Other Elements branded by Coca-Cola - Streamer
+
+Identify Streamers, which are elongated, hanging strips, flags, or banners with Coca-Cola branding, often in red and white. They are suspended from ceilings, entryways, or above counters, typically in dining or POS areas. Look for dangling or flowing materials with visible Coca-Cola logos or colors. Return 'Y' if a Coca-Cola branded streamer is clearly visible, 'N' if no such streamers are present, or 'N/A' if the image does not show ceilings, entryways, or relevant hanging spaces. Do not guess or assume.
+ 
+Class ID 1021: Other Elements branded by Coca-Cola - Combo board Non-digital
+
+Identify Combo Boards (Non-digital), which are static, printed boards made of paper, foam, or similar materials, displaying meal and drink combo offers featuring Coca-Cola products. They are typically placed near counters, on walls, or in ordering areas. Look for rectangular or square boards with text and images of meals paired with Coca-Cola drinks. Return 'Y' if a non-digital Coca-Cola branded combo board is clearly visible, 'N' if no such board is present, or 'N/A' if the image does not show counters, walls, or relevant menu areas. Do not guess or assume.
+ 
+Class ID 1022: Other Elements branded by Coca-Cola - Digital Combo board
+
+Identify Digital Combo Boards, which are LCD or LED screens displaying dynamic Coca-Cola combo meal offers or promotions. These electronic displays are often mounted above counters or in POS areas, showing animated or static images of meals with Coca-Cola drinks. Look for illuminated screens with clear Coca-Cola branding. Return 'Y' if a Coca-Cola branded digital combo board is clearly visible, 'N' if no such screen is present, or 'N/A' if the image does not show counters, screens, or relevant electronic areas. Do not guess or assume.
+ 
+Class ID 1023: Other Elements branded by Coca-Cola - Menu board
+
+Identify Menu Boards, which are large boards listing food items and prices, typically mounted above counters in ordering areas, with visible Coca-Cola branding (e.g., logos, drink images). They are often permanent fixtures in restaurants or cafes. Look for expansive boards with food and drink listings that include Coca-Cola products or logos. Return 'Y' if a Coca-Cola branded menu board is clearly visible, 'N' if no such board is present, or 'N/A' if the image does not show counters or menu display areas. Do not guess or assume.
+ 
+Class ID 1024: Other Elements branded by Coca-Cola - Bar Signage
+
+Identify Bar Signage, which are signboards with Coca-Cola branding placed in bar or beverage service areas, often promoting drinks or offers. These may be flat or three-dimensional signs near drink counters or bars. Look for signage with Coca-Cola logos, colors, or drink imagery in beverage-focused areas. Return 'Y' if Coca-Cola branded bar signage is clearly visible, 'N' if no such signage is present, or 'N/A' if the image does not show bar or beverage areas. Do not guess or assume.
+ 
+Class ID 1025: Other Elements branded by Coca-Cola - Menu Book
+
+Identify Menu Books, which are dine-in menu booklets with Coca-Cola branding on the cover or inner pages. They are typically found on tables or handed to customers in restaurants or cafes. Look for multi-page menus with visible Coca-Cola logos, drink images, or promotions. Return 'Y' if a Coca-Cola branded menu book is clearly visible, 'N' if no such menu is present, or 'N/A' if the image does not show dining areas or menus. Do not guess or assume.
+ 
+Class ID 1026: Other Elements branded by Coca-Cola - Table Menu
+
+Identify Table Menus, which are small, compact menus placed on dining tables, featuring Coca-Cola branding or logos. These are often single-sheet or folded menus for quick reference by customers. Look for small menus on tables with Coca-Cola logos or drink promotions. Return 'Y' if a Coca-Cola branded table menu is clearly visible, 'N' if no such menu is present, or 'N/A' if the image does not show tables or dining areas. Do not guess or assume.
+ 
+Class ID 1027: Other Elements branded by Coca-Cola - Table Sticker
+
+Identify Table Stickers, which are adhesive decals, often round or rectangular, placed on tabletops in dining areas, featuring Coca-Cola branding or logos. Look for flat, branded stickers directly on table surfaces. Return 'Y' if a Coca-Cola branded table sticker is clearly visible, 'N' if tables are present but lack Coca-Cola branded stickers, or 'N/A' if the image does not show tables or relevant surfaces. Do not guess or assume.
+ 
+Class ID 1028: Other Elements branded by Coca-Cola - Bar Mat
+
+Identify Bar Mats, which are rubber or foam mats placed on drink counters or bars, featuring Coca-Cola branding or logos. They are typically used in beverage service areas to hold glasses or prevent spills. Look for mats with red and white Coca-Cola designs or logos. Return 'Y' if a Coca-Cola branded bar mat is clearly visible, 'N' if no such mat is present, or 'N/A' if the image does not show bar or counter areas. Do not guess or assume.
+ 
+Class ID 1029: Other Elements branded by Coca-Cola - Napkin Holder
+
+Identify Napkin Holders, which are containers holding napkins, featuring Coca-Cola logos or designs, typically placed on tables or counters. They may be plastic or metal with visible Coca-Cola branding. Look for napkin dispensers with Coca-Cola imagery in dining or service areas. Return 'Y' if a Coca-Cola branded napkin holder is clearly visible, 'N' if no such holder is present, or 'N/A' if the image does not show tables, counters, or relevant areas. Do not guess or assume.
+ 
+Class ID 1030: Other Elements branded by Coca-Cola - Tent Card
+
+Identify Tent Cards, which are small, freestanding paper or cardboard promotional items placed on tables, featuring Coca-Cola themes, logos, or drink promotions. They are often folded to stand upright in dining areas. Look for small, Coca-Cola branded cards on tables. Return 'Y' if a Coca-Cola branded tent card is clearly visible, 'N' if no such card is present, or 'N/A' if the image does not show tables or dining areas. Do not guess or assume.
+ 
+Class ID 1031: Other Elements branded by Coca-Cola - Tray
+
+Identify Trays, which are food or drink serving trays with visible Coca-Cola branding or logos, used in dining or service areas. They may be plastic or metal with printed or embossed Coca-Cola designs. Look for trays carried by staff or on tables. Return 'Y' if a Coca-Cola branded tray is clearly visible, 'N' if no such tray is present, or 'N/A' if the image does not show trays or service areas. Do not guess or assume.
+ 
+Class ID 1032: Other Elements branded by Coca-Cola - Shop Board
+
+Identify Shop Boards, which are exterior signages displaying Coca-Cola branding, often with the shop name, located outside restaurants or stores. They are typically large and visible from a distance. Look for outdoor signs with Coca-Cola logos or colors. Return 'Y' if a Coca-Cola branded shop board is clearly visible, 'N' if no such signage is present, or 'N/A' if the image does not show exterior views or signage areas. Do not guess or assume.
+ 
+Class ID 1033: Other Elements branded by Coca-Cola - Umbrella
+
+Identify Umbrellas, which are large outdoor umbrellas with Coca-Cola colors (red and white) or logos, often used at roadside stalls or outdoor seating areas. Look for oversized, Coca-Cola branded umbrellas in open spaces. Return 'Y' if a Coca-Cola branded umbrella is clearly visible, 'N' if no such umbrella is present, or 'N/A' if the image does not show outdoor areas or relevant items. Do not guess or assume.
+ 
+Class ID 1034: Other Elements branded by Coca-Cola - Neon Signage
+
+Identify Neon Signage, which are glowing, illuminated signs with Coca-Cola text or logos, commonly found in bars, cafes, or restaurants. They often feature vibrant red or white lighting. Look for bright, electronic signs with Coca-Cola branding. Return 'Y' if Coca-Cola branded neon signage is clearly visible, 'N' if no such signage is present, or 'N/A' if the image does not show bar, cafe, or signage areas. Do not guess or assume.
+ 
+Class ID 1035: Other Elements branded by Coca-Cola - Coke Glass
+
+Identify Coke Glasses, which are drinking glasses with printed or embossed Coca-Cola logos or branding, used for serving beverages in dining or bar areas. Look for glassware with clear Coca-Cola designs on tables or counters. Return 'Y' if a Coca-Cola branded glass is clearly visible, 'N' if no such glass is present, or 'N/A' if the image does not show glassware or relevant areas. Do not guess or assume.
+ 
+Class ID 1036: Other Elements branded by Coca-Cola - Waiter Apron
+
+Identify Waiter Aprons, which are clothing items worn by staff in dining or service areas, featuring Coca-Cola branding or logos. They are typically worn over uniforms with visible Coca-Cola logos or designs. Look for staff wearing aprons with Coca-Cola imagery. Return 'Y' if a Coca-Cola branded apron is clearly visible, 'N' if no such apron is present, or 'N/A' if the image does not show staff or service areas. Do not guess or assume.
+ 
+Class ID 1037: Other Elements branded by Coca-Cola - One pager Combo menu
+
+Identify One Pager Combo Menus, which are single-sheet menus listing Coca-Cola combo meals, often placed on counters or tables in dining areas. They feature Coca-Cola branding and meal/drink pairings. Look for single-page, Coca-Cola branded menus. Return 'Y' if a Coca-Cola branded one-pager combo menu is clearly visible, 'N' if no such menu is present, or 'N/A' if the image does not show counters, tables, or menu areas. Do not guess or assume.
+ 
+Class ID 1038: Other Elements branded by Coca-Cola - Wall Menu
+
+Identify Wall Menus, which are menus pasted or mounted directly on walls, featuring Coca-Cola branding, typically in ordering or dining areas. They list food or drink items with Coca-Cola logos or promotions. Look for wall-mounted, Coca-Cola branded menu displays. Return 'Y' if a Coca-Cola branded wall menu is clearly visible, 'N' if no such menu is present, or 'N/A' if the image does not show walls or menu areas. Do not guess or assume.
+ 
+Class ID 1039: Other Elements branded by Coca-Cola - Rack shelf branding
+
+Identify Rack Shelf Branding, which are Coca-Cola branding elements printed or stuck onto product racks or shelves, often in display or retail areas. Look for shelves or racks with Coca-Cola logos, colors, or product promotions. Return 'Y' if Coca-Cola branded rack shelf branding is clearly visible, 'N' if no such branding is present, or 'N/A' if the image does not show racks, shelves, or display areas. Do not guess or assume.
+ 
+Class ID 1040: Other Elements branded by Coca-Cola - Pillar Branding
+
+Identify Pillar Branding, which are Coca-Cola branding elements wrapped or pasted on vertical pillars, often in dining or public areas. They feature Coca-Cola logos, colors, or promotional designs. Look for pillars with Coca-Cola decorations. Return 'Y' if Coca-Cola branded pillar branding is clearly visible, 'N' if no such branding is present, or 'N/A' if the image does not show pillars or relevant areas. Do not guess or assume.
+ 
+Class ID 1041: Other Elements branded by Coca-Cola - Window Branding (One Way Vision)
+
+Identify Window Branding (One Way Vision), which are branded stickers on glass windows, visible from outside, featuring Coca-Cola logos or designs. They allow visibility from one side while displaying Coca-Cola branding externally. Look for window decals with Coca-Cola imagery. Return 'Y' if Coca-Cola branded window branding is clearly visible, 'N' if no such branding is present, or 'N/A' if the image does not show windows or relevant areas. Do not guess or assume.
+ 
+Class ID 1042: Other Elements branded by Coca-Cola - Offer Communication (Printed Communication Material)
+
+Identify Offer Communication (Printed Communication Material), which are printed flyers, tent cards, or display boards showing Coca-Cola offers, typically in dining or POS areas. They highlight promotions or discounts on Coca-Cola products. Look for Coca-Cola branded promotional displays. Return 'Y' if Coca-Cola branded offer communication is clearly visible, 'N' if no such material is present, or 'N/A' if the image does not show relevant promotional areas. Do not guess or assume.
+ 
+Class ID 1043: Other Elements branded by Coca-Cola - Aerial Hanger
+
+Identify Aerial Hangers, which are hanging promotional signs suspended from ceilings, featuring Coca-Cola branding, often in dining or entrance areas. They are typically lightweight signs with Coca-Cola logos or promotions. Look for ceiling-hung, Coca-Cola branded signs. Return 'Y' if a Coca-Cola branded aerial hanger is clearly visible, 'N' if no such hanger is present, or 'N/A' if the image does not show ceilings or relevant hanging spaces. Do not guess or assume.
+ 
+Class ID 1044: Other Elements branded by Coca-Cola - Digital Display Ad
+
+Identify Digital Display Ads, which are electronic screens (e.g., LCD, LED) playing Coca-Cola advertisements or offer videos, often in POS or public areas. They display dynamic content with Coca-Cola branding. Look for screens showing Coca-Cola ads. Return 'Y' if a Coca-Cola branded digital display ad is clearly visible, 'N' if no such screen is present, or 'N/A' if the image does not show screens or relevant ad areas. Do not guess or assume.
+ 
+Class ID 1045: Other Elements branded by Coca-Cola - Coke logo Cup
+
+Identify Coke Logo Cups, which are paper or reusable cups with printed Coca-Cola logos, used for serving beverages in dining or service areas. Look for cups with clear Coca-Cola branding on tables, counters, or in customers' hands. Return 'Y' if a Coca-Cola branded cup is clearly visible, 'N' if no such cup is present, or 'N/A' if the image does not show cups or relevant areas. Do not guess or assume.
+ 
+Class ID 1046: Other Elements branded by Coca-Cola - Price Communication
+
+Identify Price Communication, which are materials (e.g., signs, tags, boards) showing product prices alongside Coca-Cola branding, typically in POS or display areas. They highlight Coca-Cola product prices or promotions. Look for Coca-Cola branded price displays. Return 'Y' if Coca-Cola branded price communication is clearly visible, 'N' if no such material is present, or 'N/A' if the image does not show price displays or relevant areas. Do not guess or assume.
+ 
+
+Example output:
+{
+
+  "1001": "Y",
+
+  "1002": "Coca-Cola",
+
+  "1004": "Y",
+
+  "1005": "Y",
+
+  "1006": "N",
+
+  "1007": "Fully visible",
+
+  "1008": "Y",
+
+  "1009": "Y",
+
+  "1010": "Y",
+
+  "1011": "100% pure",
+
+  "1018": "Y",
+
+  "1019": "Y",
+
+  "1020": "N",
+
+  "1021": "Y",
+
+  "1022": "N",
+
+  "1023": "Y",
+
+  "1024": "N",
+
+  "1025": "Y",
+
+  "1026": "Y",
+
+  "1027": "N",
+
+  "1028": "Y",
+
+  "1029": "N",
+
+  "1030": "Y",
+
+  "1031": "Y",
+
+  "1032": "N",
+
+  "1033": "N",
+
+  "1034": "Y",
+
+  "1035": "Y",
+
+  "1036": "N",
+
+  "1037": "Y",
+
+  "1038": "N",
+
+  "1039": "Y",
+
+  "1040": "N",
+
+  "1041": "Y",
+
+  "1042": "Y",
+
+  "1043": "N",
+
+  "1044": "N",
+
+  "1045": "Y",
+
+  "1046": "Y"
+
+}
