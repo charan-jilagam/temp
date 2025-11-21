@@ -8,10 +8,10 @@ from app.config_loader import load_config
 from app.s3_handler import S3Handler
 from app.yolo_predictor import run_yolo_predictions
 from app.ollama_analyzer import run_ollama_analysis
-# from app.uploader import upload_ollama_results
+from app.uploader import upload_ollama_results
 from app.file_uploader import FileUploader
 from app.db_handler import initialize_db_connection, close_db_connection, get_max_cyclecountid
-# from app.visicooler import run_visicooler_analysis, check_visibilitydetails_schema
+from app.visicooler import run_visicooler_analysis, check_visibilitydetails_schema
 
 
 logging.basicConfig(
@@ -41,9 +41,9 @@ def main():
         conn, cur = initialize_db_connection(db_config)
 
         # # Check visibilitydetails schema
-        # if not check_visibilitydetails_schema(cur):
-        #     logger.error("Schema validation failed for orgi.visibilitydetails. Please verify the table schema using: \\d orgi.visibilitydetails. Ensure columns match: cyclecountid (INTEGER/BIGINT), imagefilename (VARCHAR/TEXT/CHARACTER VARYING), numshelf (INTEGER/BIGINT), numproducts (INTEGER/BIGINT), numpureshelf (INTEGER/BIGINT), coolersize (VARCHAR/TEXT/CHARACTER VARYING), percentrgb (FLOAT/NUMERIC), chilleditems (INTEGER/BIGINT), warmitems (INTEGER/BIGINT), skus_detected (VARCHAR/TEXT/CHARACTER VARYING), share_chilled (FLOAT/NUMERIC), share_warm (FLOAT/NUMERIC), present_no_facings (VARCHAR/TEXT/CHARACTER VARYING).")
-        #     return
+        if not check_visibilitydetails_schema(cur):
+            logger.error("Schema validation failed for orgi.visibilitydetails. Please verify the table schema using: \\d orgi.visibilitydetails. Ensure columns match: cyclecountid (INTEGER/BIGINT), imagefilename (VARCHAR/TEXT/CHARACTER VARYING), numshelf (INTEGER/BIGINT), numproducts (INTEGER/BIGINT), numpureshelf (INTEGER/BIGINT), coolersize (VARCHAR/TEXT/CHARACTER VARYING), percentrgb (FLOAT/NUMERIC), chilleditems (INTEGER/BIGINT), warmitems (INTEGER/BIGINT), skus_detected (VARCHAR/TEXT/CHARACTER VARYING), share_chilled (FLOAT/NUMERIC), share_warm (FLOAT/NUMERIC), present_no_facings (VARCHAR/TEXT/CHARACTER VARYING).")
+            return
 
         # Initialize S3 handler
         s3_handler = S3Handler(s3_config, db_config)
@@ -85,21 +85,21 @@ def main():
                 cyclecountid = yolo_cyclecountid
 
             # # Run visicooler analysis
-            # logger.info("Running visicooler analysis...")
-            # try:
-            #     visicooler_records = run_visicooler_analysis(
-            #         image_paths=image_paths,
-            #         config=config,
-            #         s3_handler=s3_handler,
-            #         conn=conn,
-            #         cur=cur,
-            #         output_folder_path=visicooler_config['output_folder_path'],
-            #         cyclecountid=cyclecountid
-            #     )
-            #     logger.info(f"Visicooler analysis completed: {len(visicooler_records)} records generated.")
-            # except Exception as e:
-            #     logger.error(f"Visicooler analysis failed: {e}. Continuing pipeline.")
-            #     visicooler_records = []
+            logger.info("Running visicooler analysis...")
+            try:
+                visicooler_records = run_visicooler_analysis(
+                    image_paths=image_paths,
+                    config=config,
+                    s3_handler=s3_handler,
+                    conn=conn,
+                    cur=cur,
+                    output_folder_path=visicooler_config['output_folder_path'],
+                    cyclecountid=cyclecountid
+                )
+                logger.info(f"Visicooler analysis completed: {len(visicooler_records)} records generated.")
+            except Exception as e:
+                logger.error(f"Visicooloer analysis failed: {e}. Continuing pipeline.")
+                visicooler_records = []
 
             # Upload YOLO CSV to S3
             logger.info("Uploading YOLO CSV to S3...")
@@ -112,36 +112,36 @@ def main():
                 logger.error(f"Failed to upload YOLO CSV to S3: {e}")
 
             # # Run Ollama analysis
-            # logger.info("Running Ollama analysis with ollama:qwen2.5vl...")
-            # try:
-            #     ollama_results, ollama_csv = run_ollama_analysis(
-            #         image_paths=image_paths,
-            #         image_folder=temp_dir,
-            #         output_csv=ollama_config['output_csv'],
-            #         config_path='config.json',
-            #         class_ids_path=ollama_config['class_ids_path'],
-            #         ollama_host=ollama_config['ollama_host'],
-            #         s3_handler=s3_handler,
-            #         s3_annotated_folder=f"{ollama_config['output_s3_folder']}VisibleItem_{cyclecountid}",
-            #         db_config=db_config,
-            #         cyclecountid=cyclecountid
-            #     )
-            # except Exception as e:
-            #     logger.error(f"Ollama analysis failed: {e}. Likely due to memory constraints. Consider upgrading system memory or using a smaller model.")
-            #     ollama_results, ollama_csv = [], None
+            logger.info("Running Ollama analysis with ollama:qwen2.5vl...")
+            try:
+                ollama_results, ollama_csv = run_ollama_analysis(
+                    image_paths=image_paths,
+                    image_folder=temp_dir,
+                    output_csv=ollama_config['output_csv'],
+                    config_path='config.json',
+                    class_ids_path=ollama_config['class_ids_path'],
+                    ollama_host=ollama_config['ollama_host'],
+                    s3_handler=s3_handler,
+                    s3_annotated_folder=f"{ollama_config['output_s3_folder']}VisibleItem_{cyclecountid}",
+                    db_config=db_config,
+                    cyclecountid=cyclecountid
+                )
+            except Exception as e:
+                logger.error(f"Ollama analysis failed: {e}. Likely due to memory constraints. Consider upgrading system memory or using a smaller model.")
+                ollama_results, ollama_csv = [], None
 
-            # # Upload Ollama CSV to S3
-            # logger.info("Uploading Ollama CSV to S3...")
-            # if ollama_csv and os.path.exists(ollama_csv):
-            #     try:
-            #         s3_handler.upload_file_to_s3(
-            #             ollama_csv,
-            #             f"{ollama_config['output_s3_folder']}VisibleItem_{cyclecountid}/analysis_results_one_hot.csv"
-            #         )
-            #     except Exception as e:
-            #         logger.error(f"Failed to upload Ollama CSV to S3: {e}")
-            # else:
-            #     logger.warning("Skipping Ollama CSV upload due to missing CSV file. Likely due to memory constraints.")
+            # Upload Ollama CSV to S3
+            logger.info("Uploading Ollama CSV to S3...")
+            if ollama_csv and os.path.exists(ollama_csv):
+                try:
+                    s3_handler.upload_file_to_s3(
+                        ollama_csv,
+                        f"{ollama_config['output_s3_folder']}VisibleItem_{cyclecountid}/analysis_results_one_hot.csv"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to upload Ollama CSV to S3: {e}")
+            else:
+                logger.warning("Skipping Ollama CSV upload due to missing CSV file. Likely due to memory constraints.")
 
             # Update processed_flag in orgi.fileupload
             logger.info("Updating processed_flag for downloaded images...")

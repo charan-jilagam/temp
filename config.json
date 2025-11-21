@@ -1,0 +1,52 @@
+{
+  "db_config": {
+    "host": "100.42.188.112",
+    "port": 5432,
+    "database": "ImageInsight",
+    "user": "postgres",
+    "password": "sconex"
+  },
+  "s3_config": {
+    "bucket_name": "imageinsightimagesbeverages",
+    "image_folder_s3": "STORE_IMAGES/",
+    "access_key": "AKIA6D6JBNORLYOWHTZZ",
+    "secret_key": "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",
+    "region": "ap-south-1"
+  },
+  "yolo_config": {
+    "yaml_path": "data/data 1.yaml",
+    "model_path": "data/yolov8l roboflow dipto.pt",
+    "image_source_s3_folder": "STORE_IMAGES/",
+    "output_s3_folder": "ModelResults/",
+    "csv_output_path": "outputs/prediction_output.csv",
+    "modelname": "yolov8l",
+    "iteration": 100116,
+    "iteration_description": "trained on roboflow, medium+high quality images tested"
+  },
+  "ollama_config": {
+    "image_folder_s3": "STORE_IMAGES/",
+    "output_s3_folder": "ModelResults/",
+    "output_csv": "outputs/ollama_analysis_results.csv",
+    "class_ids_path": "data/class_ids.json",
+    "prompt_path": "data/prompts/",
+    "prompt_files": {
+      "visicooler_detect": "visicooler_detection.txt",
+      "visicooler_attrs": "visicooler_parameters.txt",
+      "extended_visibility_group1": "extended_group1.txt",
+      "extended_visibility_group2": "extended_group2.txt"
+    },
+    "ollama_host": "http://127.0.0.1:11434",
+    "ollama_enabled": true,
+    "ollama_model": "qwen2.5vl:latest",
+    "hybrid_mode": true
+  },
+  "visicooler_config": {
+    "shelf_model_path": "data/shelfmodel.pt",
+    "cap_model_path": "data/capmodel.pt",
+    "yaml_path": "data/data 1.yaml",
+    "model_path": "data/yolov8l roboflow dipto.pt",
+    "output_folder_path": "outputs/segmented_images/",
+    "shelf_class_id": 80,
+    "conf_threshold": 0.05
+  }
+}
