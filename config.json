@@ -42,7 +42,7 @@
   },
   "visicooler_config": {
     "shelf_model_path": "data/shelfmodel.pt",
-    "cap_model_path": "data/capmodel.pt",
+    "caps_model_path": "data/capmodel.pt",
     "yaml_path": "data/data 1.yaml",
     "model_path": "data/yolov8l roboflow dipto.pt",
     "output_folder_path": "outputs/segmented_images/",
