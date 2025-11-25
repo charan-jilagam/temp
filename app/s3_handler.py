@@ -42,9 +42,16 @@ class S3Handler:
             # Modified query to include processed_flag = '0.0' and remove strict filename prefix requirement
             cur.execute(
                 """
-                SELECT filesequenceid, storename, filename, storeid 
-                FROM orgi.fileupload 
-                WHERE processed_flag IN ('N', '0.0') OR processed_flag IS NULL
+                SELECT filesequenceid, storename, filename, storeid, subcategory_id
+                FROM orgi.fileupload
+                WHERE 
+                (
+                processed_flag IN ('N', '0.0') 
+                OR 
+                processed_flag IS NULL
+                )
+                AND
+                subcategory_id IN (602, 603);
                 """
             )
             image_data = cur.fetchall()
