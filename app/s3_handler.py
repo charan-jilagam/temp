@@ -42,7 +42,7 @@ class S3Handler:
             # Modified query to include processed_flag = '0.0' and remove strict filename prefix requirement
             cur.execute(
                 """
-                SELECT filesequenceid, storename, filename, storeid, subcategory_id
+                SELECT filesequenceid, storename, filename, storeid
                 FROM orgi.fileupload f
                 WHERE 
                 (
