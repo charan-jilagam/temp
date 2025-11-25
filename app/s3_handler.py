@@ -43,15 +43,26 @@ class S3Handler:
             cur.execute(
                 """
                 SELECT filesequenceid, storename, filename, storeid, subcategory_id
-                FROM orgi.fileupload
+                FROM orgi.fileupload f
                 WHERE 
                 (
-                processed_flag IN ('N', '0.0') 
-                OR 
-                processed_flag IS NULL
+                    processed_flag IN ('N', '0.0') 
+                    OR processed_flag IS NULL
                 )
                 AND
-                subcategory_id IN (602, 603);
+                (
+                    subcategory_id = 603
+                    OR
+                    (
+                        subcategory_id = 602
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM orgi.fileupload x
+                            WHERE x.storeid = f.storeid
+                              AND x.subcategory_id = 603
+                        )
+                    )
+                );
                 """
             )
             image_data = cur.fetchall()
