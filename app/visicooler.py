@@ -136,7 +136,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 # ------------------ MASTER INSERT ------------------
                 cur.execute("""
                 INSERT INTO orgi.coolermetricsmaster
-                (iterationid, iterationtranid, storeid, caserid, modelrun, processedflag)
+                (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
                 VALUES (%s, %s, %s, %s, %s, 'N')
                 """, (
                     iterationid,
