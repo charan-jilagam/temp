@@ -159,6 +159,11 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 INSERT INTO orgi.coolermetricsmaster
                 (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
                 VALUES (%s, %s, %s, %s, %s, 'N')
+                ON CONFLICT (iterationid, iterationtranid) 
+                DO UPDATE SET 
+                    storeid = EXCLUDED.storeid,
+                    caserid = EXCLUDED.caserid,
+                    modelrun = EXCLUDED.modelrun
                 """, (
                     iterationid,
                     0,
