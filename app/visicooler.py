@@ -154,23 +154,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}"
                         )
 
-                # ------------------ MASTER INSERT ------------------
-                cur.execute("""
-                INSERT INTO orgi.coolermetricsmaster
-                (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
-                VALUES (%s, %s, %s, %s, %s, 'N')
-                ON CONFLICT (iterationid, iterationtranid) 
-                DO UPDATE SET 
-                    storeid = EXCLUDED.storeid,
-                    caserid = EXCLUDED.caserid,
-                    modelrun = EXCLUDED.modelrun
-                """, (
-                    iterationid,
-                    0,
-                    storeid,
-                    num_shelves,
-                    datetime.now()
-                ))
 
                 # ------------------ TRANSACTION INSERT ------------------
                 iterationtranid = 1
@@ -180,6 +163,19 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                     for sku in sku_list:
                         x1, y1, x2, y2 = sku["bbox"]
+                        # MASTER INSERT (PER OBJECT to satisfy FK)
+                        cur.execute("""
+                        INSERT INTO orgi.coolermetricsmaster
+                        (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
+                        VALUES (%s, %s, %s, %s, %s, 'N')
+                        ON CONFLICT DO NOTHING
+                        """, (
+                            iterationid,
+                            iterationtranid,
+                            storeid,
+                            num_shelves,
+                            datetime.now()
+                        ))
 
                         cur.execute("""
                         INSERT INTO orgi.coolermetricstransaction
