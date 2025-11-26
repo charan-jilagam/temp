@@ -274,8 +274,20 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         }
 
         bulk_records = []
+        iterationid = 0
+        coolermetricstransaction_query = """
+        INSERT INTO orgi.coolermetricstransaction
+        (iterationid, iterationtranid, shelfnumber, productsequenceno, productclassid, x1, x2, y1, y2, confidence)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        coolermetricsmaster_query = """
+        INSERT INTO orgi.coolermetricsmaster
+        (iterationid, iterationtranid, storeid, caserid, modelrun, processedflag)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
         for filesequenceid, storename, filename, local_path, s3_key, storeid in image_paths:
             try:
+                iterationid += 1
                 image = cv2.imread(local_path)
                 if image is None:
                     logger.error(f"Failed to load image: {local_path}")
@@ -334,7 +346,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             "name": name,
                             "conf": float(box.conf[0]),
                             "bbox": (x1, y1, x2, y2),
-                            "center_y": center_y
+                            "center_y": center_y,
+                            "class_id": cls_id
                         })
 
                 shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
@@ -348,7 +361,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     for region in shelf_regions:
                         if region["top"] <= sku["center_y"] <= region["bottom"]:
                             shelf_sku_map[region["shelf_id"]].append(sku)
-                            # Count "cap" class vs others per shelf
                             if "cap" in sku["name"].lower():
                                 shelf_total_count[region["shelf_id"]] += 1
                             else:
@@ -424,15 +436,55 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     share_chilled, share_warm, present_no_facings
                 ))
 
+                iterationtranid = 0
+                transaction_records = []
+                for region in shelf_regions:
+                    shelf_id = region["shelf_id"]
+                    productsequenceno = 0
+                    for sku in shelf_sku_map[shelf_id]:
+                        productsequenceno += 1
+                        iterationtranid += 1
+                        x1, y1, x2, y2 = sku["bbox"]
+                        productclassid = sku["class_id"]
+                        confidence = sku["conf"]
+                        transaction_records.append((
+                            iterationid,
+                            iterationtranid,
+                            shelf_id,
+                            productsequenceno,
+                            productclassid,
+                            x1,
+                            x2,
+                            y1,
+                            y2,
+                            confidence
+                        ))
+
+                if transaction_records:
+                    cur.executemany(coolermetricstransaction_query, transaction_records)
+
+                cur.execute(
+                    coolermetricsmaster_query,
+                    (
+                        iterationid,
+                        0,
+                        storeid,
+                        num_shelves,
+                        datetime.now(),
+                        'N'
+                    )
+                )
+
             except Exception as e:
                 logger.error(f"Error processing image {filename}: {e}")
+                conn.rollback()
                 continue
 
-        if bulk_records:
-            upload_to_visibilitydetails(conn, cur, bulk_records, cyclecountid)
-        else:
+        if not bulk_records:
             logger.warning("No visicooler records to upload.")
+        conn.commit()
         return bulk_records
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
+        conn.rollback()
         raise
