@@ -107,7 +107,7 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
                 logger.warning(f"Invalid percentrgb type for {filename}: {type(percent_rgb)}. Using 0.0.")
                 percent_rgb = 0.0
             if not isinstance(chilled_items, int):
-                logger.warning(f"Invalid chilleditems type for {filename}: {type(chilled_items)}. Using 0.")
+                logger.warning(f"Invalid chilleditems type for {filename}: {type(chilleditems)}. Using 0.")
                 chilled_items = 0
             if not isinstance(warm_items, int):
                 logger.warning(f"Invalid warmitems type for {filename}: {type(warm_items)}. Using 0.")
@@ -276,18 +276,25 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         bulk_records = []
         iterationid = 0
         coolermetricstransaction_query = """
-        INSERT INTO orgi.coolermetricstransaction
+        INSERT INTO coolermetricstransaction
         (iterationid, iterationtranid, shelfnumber, productsequenceno, productclassid, x1, x2, y1, y2, confidence)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         coolermetricsmaster_query = """
-        INSERT INTO orgi.coolermetricsmaster
+        INSERT INTO coolermetricsmaster
         (iterationid, iterationtranid, storeid, caserid, modelrun, processedflag)
         VALUES (%s, %s, %s, %s, %s, %s)
         """
         for filesequenceid, storename, filename, local_path, s3_key, storeid in image_paths:
             try:
                 iterationid += 1
+                cur.execute(
+                    "SELECT storeid FROM batchtransactionvisibilityitems WHERE imagefilename = %s LIMIT 1",
+                    (filename,))
+                row = cur.fetchone()
+                if row is not None:
+                    storeid = row[0]
+
                 image = cv2.imread(local_path)
                 if image is None:
                     logger.error(f"Failed to load image: {local_path}")
@@ -467,13 +474,15 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     coolermetricsmaster_query,
                     (
                         iterationid,
-                        0,
+                        iterationtranid,
                         storeid,
                         num_shelves,
                         datetime.now(),
                         'N'
                     )
                 )
+
+                conn.commit()
 
             except Exception as e:
                 logger.error(f"Error processing image {filename}: {e}")
@@ -482,7 +491,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
         if not bulk_records:
             logger.warning("No visicooler records to upload.")
-        conn.commit()
         return bulk_records
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
