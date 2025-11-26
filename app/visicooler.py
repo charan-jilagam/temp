@@ -10,6 +10,47 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def check_visibilitydetails_schema(cur):
+    """Check if all required columns exist in orgi.visibilitydetails with correct data types."""
+    required_columns = {
+        'cyclecountid': {'expected_types': ['integer', 'bigint']},
+        'imagefilename': {'expected_types': ['varchar', 'text', 'character varying']},
+        'numshelf': {'expected_types': ['integer', 'bigint']},
+        'numproducts': {'expected_types': ['integer', 'bigint']},
+        'numpureshelf': {'expected_types': ['integer', 'bigint']},
+        'coolersize': {'expected_types': ['varchar', 'text', 'character varying']},
+        'percentrgb': {'expected_types': ['double precision', 'numeric', 'real']},
+        'chilleditems': {'expected_types': ['integer', 'bigint']},
+        'warmitems': {'expected_types': ['integer', 'bigint']},
+        'skus_detected': {'expected_types': ['varchar', 'text', 'character varying']},
+        'share_chilled': {'expected_types': ['double precision', 'numeric', 'real']},
+        'share_warm': {'expected_types': ['double precision', 'numeric', 'real']},
+        'present_no_facings': {'expected_types': ['varchar', 'text', 'character varying']}
+    }
+    try:
+        columns_list = ', '.join(f"'{col}'" for col in required_columns.keys())
+        query = f"""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = 'orgi' AND table_name = 'visibilitydetails'
+            AND column_name IN ({columns_list})
+        """
+        cur.execute(query)
+        columns = {row[0]: row[1].lower() for row in cur.fetchall()}
+
+        for col, props in required_columns.items():
+            if col not in columns:
+                logger.error(
+                    f"Column {col} not found in orgi.visibilitydetails. Please add it with: ALTER TABLE orgi.visibilitydetails ADD COLUMN {col} {props['expected_types'][0]};")
+                return False
+            if columns[col] not in props['expected_types']:
+                logger.error(
+                    f"Column {col} has unexpected data type: {columns[col]}. Expected one of {props['expected_types']}. Please alter with: ALTER TABLE orgi.visibilitydetails ALTER COLUMN {col} TYPE {props['expected_types'][0]};")
+                return False
+        return True
+    except Exception as e:
+        logger.error(f"Failed to check visibilitydetails schema: {e}")
+        return False
 
 def merge_overlapping_boxes(boxes, threshold=10):
     if not boxes:
