@@ -60,7 +60,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 try:
                     cur.execute("""
                         SELECT storeid 
-                        FROM batchtransactionvisibilityitems 
+                        FROM orgi.batchtransactionvisibilityitems 
                         WHERE imagefilename = %s 
                         LIMIT 1
                     """, (filename,))
