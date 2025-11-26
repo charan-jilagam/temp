@@ -67,6 +67,7 @@ def merge_overlapping_boxes(boxes, threshold=10):
 
 
 def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
+    """Upload visicooler analysis results to coolermetrics tables."""
     try:
         coolermetricstransaction_query = """
         INSERT INTO coolermetricstransaction
@@ -80,11 +81,12 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
         VALUES (%s,%s,%s,%s,%s,%s)
         """
 
-        transaction_records = []
-        master_records = []
+        for index, record in enumerate(records):
+            (filename, num_shelves, total_products, pure_shelf_count, visicooler_size,
+             percent_rgb, chilled_items, warm_items, skus_detected,
+             share_chilled, share_warm, present_no_facings) = record
 
-        for record in records:
-            (filename, shelf_regions, shelf_sku_map) = record
+            iterationid = index + 1
 
             cur.execute(
                 "SELECT storeid FROM batchtransactionvisibilityitems WHERE imagefilename = %s LIMIT 1",
@@ -93,56 +95,26 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
             row = cur.fetchone()
             storeid = row[0] if row else None
 
-            iterationid = records.index(record) + 1
-            iterationtranid = 0
-            caserid = len(shelf_regions)
-
-            for region in shelf_regions:
-                shelf_id = region["shelf_id"]
-                productsequenceno = 0
-
-                for sku in shelf_sku_map[shelf_id]:
-                    productsequenceno += 1
-                    iterationtranid += 1
-                    x1, y1, x2, y2 = sku["bbox"]
-                    productclassid = sku["class_id"]
-                    confidence = sku["conf"]
-
-                    transaction_records.append((
-                        iterationid,
-                        iterationtranid,
-                        shelf_id,
-                        productsequenceno,
-                        productclassid,
-                        x1,
-                        x2,
-                        y1,
-                        y2,
-                        confidence
-                    ))
-
-            master_records.append((
-                iterationid,
-                iterationtranid,
-                storeid,
-                caserid,
-                datetime.now(),
-                'N'
-            ))
-
-        if transaction_records:
-            cur.executemany(coolermetricstransaction_query, transaction_records)
-
-        if master_records:
-            cur.executemany(coolermetricsmaster_query, master_records)
+            cur.execute(
+                coolermetricsmaster_query,
+                (
+                    iterationid,
+                    0,
+                    storeid,
+                    num_shelves,
+                    datetime.now(),
+                    'N'
+                )
+            )
 
         conn.commit()
-        logger.info("Inserted into coolermetricstransaction and coolermetricsmaster")
+        logger.info("Inserted into coolermetricsmaster")
 
     except Exception as e:
-        logger.error(f"DB insert failed: {e}")
+        logger.error(f"Failed to upload to coolermetrics tables: {e}")
         conn.rollback()
         raise
+
 
 
 def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_folder_path, cyclecountid):
