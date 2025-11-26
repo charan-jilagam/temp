@@ -91,14 +91,26 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 merged_shelves = merge_overlapping_boxes(shelves)
                 num_shelves = len(merged_shelves)
 
-                shelf_regions = []
-                for i in range(num_shelves):
-                    if i == 0:
-                        shelf_regions.append({"shelf_id": i + 1, "top": 0, "bottom": merged_shelves[i]["bottom_y"]})
-                    elif i == num_shelves - 1:
-                        shelf_regions.append({"shelf_id": i + 1, "top": merged_shelves[i - 1]["top_y"], "bottom": image_height})
-                    else:
-                        shelf_regions.append({"shelf_id": i + 1, "top": merged_shelves[i - 1]["top_y"], "bottom": merged_shelves[i]["bottom_y"]})
+                # ✅ FIXED shelf region logic
+                if num_shelves == 0:
+                    logger.warning(f"No shelves detected for {filename}, using full image as single shelf")
+                    shelf_regions = [{
+                        "shelf_id": 1,
+                        "top": 0,
+                        "bottom": image_height
+                    }]
+                    num_shelves = 1
+                else:
+                    shelf_regions = []
+                    for i, shelf in enumerate(merged_shelves):
+                        shelf_regions.append({
+                            "shelf_id": i + 1,
+                            "top": shelf["top_y"],
+                            "bottom": shelf["bottom_y"]
+                        })
+
+                logger.info(f"SHELVES FOUND: {num_shelves}")
+                logger.info(f"SHELF REGIONS: {shelf_regions}")
 
                 # ------------------ SKU DETECTION ------------------
                 sku_results = sku_model(local_path, conf=0.35)
@@ -125,13 +137,22 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             "center_y": center_y
                         })
 
+                logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
+
                 shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
 
                 for sku in sku_detections:
+                    assigned = False
                     for region in shelf_regions:
                         if region["top"] <= sku["center_y"] <= region["bottom"]:
                             shelf_sku_map[region["shelf_id"]].append(sku)
+                            assigned = True
                             break
+
+                    if not assigned:
+                        logger.warning(
+                            f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}"
+                        )
 
                 # ------------------ MASTER INSERT ------------------
                 cur.execute("""
@@ -177,7 +198,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         productsequenceno += 1
 
                 conn.commit()
-                logger.info(f"✔ Inserted for iteration {iterationid} : {iterationtranid-1} products")
+                logger.info(f"✅ Inserted for iteration {iterationid} : {iterationtranid - 1} products")
 
             except Exception as e:
                 logger.error(f"Error processing image {filename}: {e}")
@@ -189,3 +210,4 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
         raise
+
