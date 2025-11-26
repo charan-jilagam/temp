@@ -70,13 +70,13 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
     """Upload visicooler analysis results to coolermetrics tables."""
     try:
         coolermetricstransaction_query = """
-        INSERT INTO coolermetricstransaction
+        INSERT INTO orgi.coolermetricstransaction
         (iterationid, iterationtranid, shelfnumber, productsequenceno, productclassid, x1, x2, y1, y2, confidence)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
 
         coolermetricsmaster_query = """
-        INSERT INTO coolermetricsmaster
+        INSERT INTO orgi.coolermetricsmaster
         (iterationid, iterationtranid, storeid, caserid, modelrun, processedflag)
         VALUES (%s,%s,%s,%s,%s,%s)
         """
@@ -89,7 +89,7 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
             iterationid = index + 1
 
             cur.execute(
-                "SELECT storeid FROM batchtransactionvisibilityitems WHERE imagefilename = %s LIMIT 1",
+                "SELECT storeid FROM orgi.batchtransactionvisibilityitems WHERE imagefilename = %s LIMIT 1",
                 (filename,)
             )
             row = cur.fetchone()
