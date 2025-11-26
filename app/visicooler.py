@@ -127,12 +127,34 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     num_shelves = 1
                 else:
                     shelf_regions = []
-                    for i, shelf in enumerate(merged_shelves):
+                    shelf_id = 1
+                
+                    # Region ABOVE first shelf
+                    shelf_regions.append({
+                        "shelf_id": shelf_id,
+                        "top": 0,
+                        "bottom": merged_shelves[0]["top_y"]
+                    })
+                    shelf_id += 1
+                
+                    # Regions BETWEEN shelves
+                    for i in range(len(merged_shelves) - 1):
                         shelf_regions.append({
-                            "shelf_id": i + 1,
-                            "top": shelf["top_y"],
-                            "bottom": shelf["bottom_y"]
+                            "shelf_id": shelf_id,
+                            "top": merged_shelves[i]["bottom_y"],
+                            "bottom": merged_shelves[i + 1]["top_y"]
                         })
+                        shelf_id += 1
+                
+                    # Region BELOW last shelf
+                    shelf_regions.append({
+                        "shelf_id": shelf_id,
+                        "top": merged_shelves[-1]["bottom_y"],
+                        "bottom": image_height
+                    })
+                
+                    num_shelves = len(shelf_regions)
+
 
                 logger.info(f"SHELVES FOUND: {num_shelves}")
                 logger.info(f"SHELF REGIONS: {shelf_regions}")
