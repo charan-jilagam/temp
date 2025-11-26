@@ -56,7 +56,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                 image_height, image_width = image.shape[:2]
 
-                # ------------------ GET STORE ID ------------------
+                # ------------------ GET STORE ID (with fallback) ------------------
+                original_storeid = storeid
                 try:
                     cur.execute("""
                         SELECT storeid 
@@ -65,10 +66,26 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         LIMIT 1
                     """, (filename,))
                     row = cur.fetchone()
-                    storeid = row[0] if row else None
+                    if row:
+                        storeid = row[0]
+                    else:
+                        storeid = original_storeid
+                        if storeid is None:
+                            logger.error(
+                                f"No storeid found in batchtransactionvisibilityitems or image_paths for {filename}. "
+                                f"Skipping DB inserts for this image."
+                            )
+                            # We can still process / annotate image if needed, but skip DB
+                            continue
                 except Exception as e:
                     logger.error(f"Failed to fetch storeid for {filename}: {e}")
-                    storeid = None
+                    storeid = original_storeid
+                    if storeid is None:
+                        logger.error(
+                            f"Storeid is None after exception while fetching for {filename}. "
+                            f"Skipping DB inserts for this image."
+                        )
+                        continue
 
                 # ------------------ SHELF DETECTION ------------------
                 shelf_results = shelf_model(local_path, conf=conf_threshold)
@@ -79,7 +96,15 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     scale_h = image_height / result.orig_shape[0]
 
                     for box in result.boxes:
-                        if int(box.cls[0]) == shelf_class_id:
+                        cls_id = int(box.cls[0])
+                        # Try both ID and class-name based detection for shelves
+                        name = ""
+                        try:
+                            name = shelf_model.names[cls_id]
+                        except Exception:
+                            name = ""
+
+                        if cls_id == shelf_class_id or "shelf" in name.lower():
                             x1, y1, x2, y2 = box.xyxy[0]
                             y1, y2 = int(y1 * scale_h), int(y2 * scale_h)
 
@@ -91,7 +116,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 merged_shelves = merge_overlapping_boxes(shelves)
                 num_shelves = len(merged_shelves)
 
-                # ✅ FIXED shelf region logic
+                # Shelf region logic
                 if num_shelves == 0:
                     logger.warning(f"No shelves detected for {filename}, using full image as single shelf")
                     shelf_regions = [{
@@ -154,8 +179,24 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}"
                         )
 
+                # ------------------ OPTIONAL: Annotated image & upload (preserved behavior) ------------------
+                # (This keeps your visual output + S3 upload logic working as before)
+                try:
+                    if len(sku_results) > 0:
+                        rendered_image = sku_results[0].plot()
+                        for region in shelf_regions:
+                            cv2.line(rendered_image, (0, region["top"]), (image_width, region["top"]), (0, 255, 0), 2)
+                            cv2.line(rendered_image, (0, region["bottom"]), (image_width, region["bottom"]), (0, 0, 255), 2)
+                        output_path = os.path.join(output_folder_path, f"segmented_{filename}")
+                        cv2.imwrite(output_path, rendered_image)
 
-                # ------------------ TRANSACTION INSERT ------------------
+                        s3_key_annotated = f"ModelResults/Visicooler_{cyclecountid}/segmented_{filename}"
+                        s3_handler.upload_file_to_s3(output_path, s3_key_annotated)
+                        logger.info(f"Uploaded segmented image to S3: {s3_key_annotated}")
+                except Exception as e:
+                    logger.error(f"Failed to generate/upload annotated image for {filename}: {e}")
+
+                # ------------------ MASTER + TRANSACTION INSERTS ------------------
                 iterationtranid = 1
 
                 for shelf_id, sku_list in shelf_sku_map.items():
@@ -163,7 +204,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                     for sku in sku_list:
                         x1, y1, x2, y2 = sku["bbox"]
-                        # MASTER INSERT (PER OBJECT to satisfy FK)
+
+                        # MASTER INSERT (per product)
                         cur.execute("""
                         INSERT INTO orgi.coolermetricsmaster
                         (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
@@ -177,6 +219,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             datetime.now()
                         ))
 
+                        # TRANSACTION INSERT (child rows)
                         cur.execute("""
                         INSERT INTO orgi.coolermetricstransaction
                         (iterationid, iterationtranid, shelfnumber,
@@ -199,7 +242,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         productsequenceno += 1
 
                 conn.commit()
-                logger.info(f"✅ Inserted for iteration {iterationid} : {iterationtranid - 1} products")
+                logger.info(f"Inserted for iteration {iterationid} : {iterationtranid - 1} products")
 
             except Exception as e:
                 logger.error(f"Error processing image {filename}: {e}")
@@ -211,4 +254,5 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
         raise
+
 
