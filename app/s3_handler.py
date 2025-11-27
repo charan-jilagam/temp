@@ -42,27 +42,14 @@ class S3Handler:
             # Modified query to include processed_flag = '0.0' and remove strict filename prefix requirement
             cur.execute(
                 """
-                SELECT filesequenceid, storename, filename, storeid
-                FROM orgi.fileupload f
+                SELECT filesequenceid, storename, filename, storeid, subcategory_id
+                FROM orgi.fileupload
                 WHERE 
                 (
                     processed_flag IN ('N', '0.0') 
                     OR processed_flag IS NULL
                 )
-                AND
-                (
-                    subcategory_id = 603
-                    OR
-                    (
-                        subcategory_id = 602
-                        AND NOT EXISTS (
-                            SELECT 1
-                            FROM orgi.fileupload x
-                            WHERE x.storeid = f.storeid
-                              AND x.subcategory_id = 603
-                        )
-                    )
-                );
+                AND subcategory_id IN (601, 602, 603, 604);
                 """
             )
             image_data = cur.fetchall()
@@ -71,7 +58,7 @@ class S3Handler:
 
             image_paths = []
             failed_files = []
-            for filesequenceid, storename, filename, storeid in image_data:
+            for filesequenceid, storename, filename, storeid, subcategory_id in image_data:
                 try:
                     # Log the storename and filename for debugging
                     logger.debug(f"Processing filesequenceid: {filesequenceid}, storename: {storename}, filename: {filename}")
@@ -97,7 +84,7 @@ class S3Handler:
                         try:
                             self.s3_client.download_file(self.bucket_name, s3_key, local_path)
                             logger.info(f"Downloaded {s3_key} to {local_path}")
-                            image_paths.append((filesequenceid, storename, clean_filename, local_path, s3_key, storeid))
+                            image_paths.append((filesequenceid, storename, clean_filename, local_path, s3_key, storeid, subcategory_id))
                             downloaded = True
                             s3_key_used = s3_key
                             break  # Stop trying other keys after a successful download
