@@ -123,7 +123,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 s3path_actual_file = None
                 storename = None
                 storeid = None
-                for filesequenceid, s_name, fname, _, s3_key, s_id in image_paths:
+                for filesequenceid, s_name, fname, _, s3_key, s_id, subcategory_id in image_paths:
                     if fname == imagefilename:
                         s3path_actual_file = s3_key
                         storename = s_name
