@@ -14,29 +14,60 @@ class FileUploader:
             cur = conn.cursor()
             for file_tuple in processed_files:
                 try:
-                    # Handle tuples with either 5 or 6 elements
-                    if len(file_tuple) == 5:
+                    length = len(file_tuple)
+
+                    # Handle tuples with 5, 6 OR 7 values
+                    if length == 5:
                         filesequenceid, storename, filename, local_path, s3_key = file_tuple
-                    elif len(file_tuple) == 6:
+                        storeid = None
+                        subcategory_id = None
+
+                    elif length == 6:
                         filesequenceid, storename, filename, local_path, s3_key, storeid = file_tuple
+                        subcategory_id = None
+
+                    elif length == 7:
+                        filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id = file_tuple
+
                     else:
-                        logger.error(f"Invalid tuple length for file: {file_tuple}. Expected 5 or 6 elements, got {len(file_tuple)}.")
+                        logger.error(
+                            f"Invalid tuple length: {length} "
+                            f"for file: {file_tuple}"
+                        )
                         failed_updates.append(file_tuple)
                         continue
 
+                    # UPDATE using ONLY filesequenceid (correct approach)
                     cur.execute(
-                        "UPDATE orgi.fileupload SET processed_flag = 'Y' WHERE filesequenceid = %s",
+                        """
+                        UPDATE orgi.fileupload 
+                        SET processed_flag = 'Y' 
+                        WHERE filesequenceid = %s
+                        """,
                         (filesequenceid,)
                     )
-                    logger.info(f"Updated processed_flag to 'Y' for filesequenceid {filesequenceid}")
+
+                    logger.info(
+                        f"Updated processed_flag for filesequenceid={filesequenceid} "
+                        f"(storeid={storeid}, subcategory={subcategory_id})"
+                    )
+
                 except Exception as e:
-                    logger.error(f"Failed to update processed_flag for filesequenceid {filesequenceid}: {e}")
-                    failed_updates.append((filesequenceid, storename, filename))
+                    logger.error(f"Failed to update processed_flag for {file_tuple}: {e}")
+                    failed_updates.append(file_tuple)
+
             conn.commit()
+
         except Exception as e:
-            logger.error(f"Failed to update processed_flag: {e}")
-            failed_updates.extend([(f[0], f[1], f[2]) for f in processed_files if len(f) in {5, 6}])
+            logger.error(f"Failed to update processed_flag globally: {e}")
+
+            # return safe tuple parts only
+            for f in processed_files:
+                if len(f) >= 3:
+                    failed_updates.append((f[0], f[1], f[2]))
+
         finally:
             if 'cur' in locals():
                 cur.close()
+
         return failed_updates
