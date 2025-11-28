@@ -156,6 +156,29 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                 logger.info(f"SHELVES FOUND: {num_shelves}")
                 logger.info(f"SHELF REGIONS: {shelf_regions}")
+                # ------------------ GET CASERID FROM PUREMAPPING ------------------
+                caserid = None
+                try:
+                    cur.execute("""
+                        SELECT caserid
+                        FROM orgi.puritymapping
+                        WHERE noofshelves = %s
+                        LIMIT 1
+                    """, (num_shelves,))
+                
+                    row = cur.fetchone()
+                
+                    if row:
+                        caserid = row[0]
+                    else:
+                        logger.warning(
+                            f"No caserid mapping found for shelf count: {num_shelves}. Setting caserid = 0"
+                        )
+                        caserid = 0
+                
+                except Exception as e:
+                    logger.error(f"Failed to fetch caserid from puritymapping: {e}")
+                    caserid = 0
 
                 # ------------------ SKU DETECTION ------------------
                 sku_results = sku_model(local_path, conf=0.35)
@@ -239,7 +262,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             iterationid,
                             iterationtranid,
                             storeid,
-                            num_shelves,
+                            caserid,
                             datetime.now()
                         ))
 
