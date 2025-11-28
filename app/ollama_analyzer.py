@@ -157,7 +157,7 @@ def run_ollama_analysis(image_paths, image_folder, output_csv, config_path, clas
         s3_annotated_folder = f"ModelResults/VisibleItem_{stagingid}"
 
         # Process images
-        for idx, (filesequenceid, storename, filename, local_path, s3_key, storeid) in enumerate(image_paths):
+        for idx, (filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id) in enumerate(image_paths):
             logger.info(f"Processing image {idx + 1}/{len(image_paths)}: {filename}")
             try:
                 # Validate image file
