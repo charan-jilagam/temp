@@ -44,12 +44,29 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         sku_model = YOLO(sku_model_path)
 
         bulk_records = []
+        # ------------------ PRE-SCAN: FIND WHICH STORES HAVE 603 ------------------
+        store_has_603 = {}
+        
+        for _, _, _, _, _, storeid, subcategory_id in image_paths:
+            if storeid not in store_has_603:
+                store_has_603[storeid] = False
+            if subcategory_id == 603:
+                store_has_603[storeid] = True
 
         for filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id in image_paths:
             # ONLY process subcategory 603 in Visicooler
-            if subcategory_id not in (602,603):
-                logger.info(f"Skipping {filename} - subcategory {subcategory_id} not for visicooler")
-                continue
+            # ------------------ PROCESS 603 PER STORE (fallback to 602) ------------------
+            allowed_603 = store_has_603[storeid]
+            if allowed_603:
+                # Store contains 603 → only allow 603
+                if subcategory_id != 603:
+                    logger.info(f"Skipping {filename} - Store {storeid} has 603, so skipping non-603")
+                    continue
+            else:
+                # Store has NO 603 → fallback to 602 only
+                if subcategory_id != 602:
+                    logger.info(f"Skipping {filename} - Store {storeid} has no 603, so only processing 602")
+                    continue
             try:
                 iterationid = filesequenceid
 
