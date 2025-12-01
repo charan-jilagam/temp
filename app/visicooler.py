@@ -47,7 +47,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
         for filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id in image_paths:
             # ONLY process subcategory 603 in Visicooler
-            if subcategory_id != 603:
+            if subcategory_id not in (602,603):
                 logger.info(f"Skipping {filename} - subcategory {subcategory_id} not for visicooler")
                 continue
             try:
