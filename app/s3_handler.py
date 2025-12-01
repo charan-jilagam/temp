@@ -48,8 +48,7 @@ class S3Handler:
                 (
                     processed_flag IN ('N', '0.0') 
                     OR processed_flag IS NULL
-                )
-                AND subcategory_id IN (601, 602, 603, 604);
+                );
                 """
             )
             image_data = cur.fetchall()
