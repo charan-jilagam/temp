@@ -78,11 +78,12 @@ def main():
                 conn=conn,
                 cur=cur,
                 s3_handler=s3_handler,
-                image_paths=image_paths
+                image_paths=image_paths,
+                cyclecountid_override=cyclecountid
             )
             if yolo_cyclecountid != cyclecountid:
-                logger.warning(f"YOLO cyclecountid {yolo_cyclecountid} differs from assigned cyclecountid {cyclecountid}. Using {cyclecountid}.")
-                cyclecountid = yolo_cyclecountid
+                logger.warning(f"⚠ YOLO returned cyclecountid {yolo_cyclecountid}, "
+                               f"but pipeline will use {cyclecountid}.")
 
             # # Run visicooler analysis
             logger.info("Running visicooler analysis...")
