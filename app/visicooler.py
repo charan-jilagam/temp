@@ -6,6 +6,7 @@ from app.db_handler import initialize_db_connection, close_db_connection, get_cl
 from app.config_loader import load_config
 from app.s3_handler import S3Handler
 from datetime import datetime
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -173,30 +174,33 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                 logger.info(f"SHELVES FOUND: {num_shelves}")
                 logger.info(f"SHELF REGIONS: {shelf_regions}")
-                # ------------------ GET CASERID FROM PUREMAPPING ------------------
-                caserid = None
+               # ------------------ GET CASERID FROM STOREMASTER ------------------
+                caserid = 0
                 try:
                     cur.execute("""
-                        SELECT caserid
-                        FROM orgi.puritymapping
-                        WHERE noofshelves = %s
+                        SELECT cooler
+                        FROM orgi.storemaster
+                        WHERE storeid = %s
                         LIMIT 1
-                    """, (num_shelves,))
+                    """, (storeid,))
                 
                     row = cur.fetchone()
                 
-                    if row:
-                        caserid = row[0]
+                    if row and row[0]:
+                        cooler_text = row[0]
+                        match = re.search(r'(\d+)', cooler_text)
+                        if match:
+                            caserid = int(match.group(1))
+                            logger.info(f"Extracted caserid {caserid} from cooler text '{cooler_text}'")
+                        else:
+                            logger.warning(f"No numeric value found in cooler text '{cooler_text}', using caserid = 0")
+                
                     else:
-                        logger.warning(
-                            f"No caserid mapping found for shelf count: {num_shelves}. Setting caserid = 0"
-                        )
-                        caserid = 0
+                        logger.warning(f"No cooler info found in storemaster for storeid {storeid}, using caserid = 0")
                 
                 except Exception as e:
-                    logger.error(f"Failed to fetch caserid from puritymapping: {e}")
+                    logger.error(f"Failed to fetch or parse cooler size for store {storeid}: {e}")
                     caserid = 0
-
                 # ------------------ SKU DETECTION ------------------
                 sku_results = sku_model(local_path, conf=0.35)
 
