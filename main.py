@@ -62,13 +62,11 @@ def main():
                 logger.info(f"Proceeding with {len(image_paths)} images, {len(failed_files)} failed.")
 
             # Get or increment cyclecountid
-            # Compute cyclecountid reliably from DB maxima across key tables
             try:
                 cur.execute("""
                     SELECT GREATEST(
                         COALESCE((SELECT MAX(cyclecountid) FROM orgi.visibilitydetails), 0),
-                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.cyclecount_staging), 0),
-                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.coolermetricsmaster), 0)
+                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.cyclecount_staging), 0)
                     ) AS max_cycle
                 """)
                 row = cur.fetchone()
