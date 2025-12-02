@@ -10,7 +10,7 @@ import torch
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, modelname, s3_bucket_name, s3_folder, conn, cur, s3_handler, image_paths):
+def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, modelname, s3_bucket_name, s3_folder, conn, cur, s3_handler, image_paths, cyclecountid_override=None):
     """Run YOLO predictions and save results to CSV and database."""
     logger.info(f"Using ultralytics version: {ultralytics.__version__}")
     logger.info(f"Using torch version: {torch.__version__}")
