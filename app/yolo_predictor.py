@@ -17,7 +17,13 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
     
     from app.db_handler import get_max_cyclecountid, clear_cyclecount_staging, insert_yolo_prediction
     try:
-        cyclecountid = get_max_cyclecountid(cur) + 1
+        # Use pipeline cyclecountid if provided
+        if cyclecountid_override is not None:
+            cyclecountid = cyclecountid_override
+            logger.info(f"Using cyclecountid from pipeline: {cyclecountid}")
+        else:
+            cyclecountid = get_max_cyclecountid(cur) + 1
+            logger.info(f"YOLO computed cyclecountid: {cyclecountid}")
         logger.info(f"Using cyclecountid: {cyclecountid}")
     except Exception as e:
         logger.error(f"Failed to retrieve cyclecountid, using default: {e}")
