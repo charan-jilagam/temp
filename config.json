@@ -44,7 +44,7 @@
     "shelf_model_path": "data/shelfmodel.pt",
     "caps_model_path": "data/capmodel.pt",
     "yaml_path": "data/data 1.yaml",
-    "model_path": "data/yolov8l roboflow dipto.pt",
+    "model_path": "data/yolov8l_v1.1_4554.pt",
     "output_folder_path": "outputs/segmented_images/",
     "shelf_class_id": 80,
     "conf_threshold": 0.05
