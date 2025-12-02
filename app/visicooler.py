@@ -79,13 +79,24 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         logger.info(f"Stores with 603 detected: {stores_with_603}")
         
         # -------- PROCESS LOOP with correct fallback logic --------
-        for filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id in image_paths:
-        
-            sid = _norm_storeid(storeid)
+        for filesequenceid, storename, filename, local_path, s3_key, orig_storeid, subcategory_id in image_paths:
+            canonical_storeid = orig_storeid
+            try:
+                cur.execute("""
+                    SELECT storeid 
+                    FROM orgi.batchtransactionvisibilityitems
+                    WHERE imagefilename = %s
+                    LIMIT 1
+                """, (filename,))
+                db_row = cur.fetchone()
+                if db_row and db_row[0] is not None:
+                    canonical_storeid = db_row[0]
+            except Exception as e:
+                logger.debug(f"Could not fetch canonical storeid for {filename}, using original storeid {orig_storeid}: {e}")
+            sid = _norm_storeid(canonical_storeid)
             if sid is None:
-                logger.warning(f"{filename}: Invalid or missing storeid — skipping")
+                logger.warning(f"{filename}: Invalid or missing storeid (orig={orig_storeid}, db={canonical_storeid}) — skipping")
                 continue
-        
             try:
                 subcat = int(subcategory_id)
             except:
@@ -94,22 +105,16 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     subcat = int(str(subcategory_id).strip())
                 except:
                     pass
-        
             store_has_603 = sid in stores_with_603
         
-            # ---- Correct precedence logic ----
             if store_has_603:
-                # Store has 603 → ONLY process images with 603
                 if subcat != 603:
-                    logger.info(f"Skipping {filename} — Store {sid} has 603, so ignoring 602")
+                    logger.info(f"Skipping {filename} — Store {sid} (canonical) has 603, so ignoring {subcat}")
                     continue
             else:
-                # Store does NOT have 603 → ONLY process 602
                 if subcat != 602:
-                    logger.info(f"Skipping {filename} — Store {sid} has no 603, so only processing 602")
+                    logger.info(f"Skipping {filename} — Store {sid} (canonical) has no 603, so only processing 602")
                     continue
-        
-            # --- Now continue your normal processing ---
 
             try:
                 iterationid = filesequenceid
