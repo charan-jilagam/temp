@@ -62,8 +62,28 @@ def main():
                 logger.info(f"Proceeding with {len(image_paths)} images, {len(failed_files)} failed.")
 
             # Get or increment cyclecountid
-            cyclecountid = get_max_cyclecountid(cur) + 1
-            logger.info(f"Using cyclecountid: {cyclecountid}")
+            # Compute cyclecountid reliably from DB maxima across key tables
+            try:
+                cur.execute("""
+                    SELECT GREATEST(
+                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.visibilitydetails), 0),
+                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.cyclecount_staging), 0),
+                        COALESCE((SELECT MAX(cyclecountid) FROM orgi.coolermetricsmaster), 0)
+                    ) AS max_cycle
+                """)
+                row = cur.fetchone()
+                max_cycle = int(row[0]) if row and row[0] is not None else 0
+                cyclecountid = max_cycle + 1
+                logger.info(f"Computed cyclecountid from DB maxima: {cyclecountid} (max seen: {max_cycle})")
+            except Exception as e:
+                logger.warning(f"Failed to compute cyclecountid from DB maxima, falling back to get_max_cyclecountid(): {e}")
+                try:
+                    cyclecountid = get_max_cyclecountid(cur) + 1
+                    logger.info(f"Fallback cyclecountid: {cyclecountid}")
+                except Exception as e2:
+                    logger.error(f"Fallback get_max_cyclecountid failed: {e2}. Using cyclecountid = 1")
+                    cyclecountid = 1
+
 
             # Run YOLO predictions
             logger.info("Running YOLO predictions...")
