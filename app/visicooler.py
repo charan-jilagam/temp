@@ -46,28 +46,71 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
         bulk_records = []
         # ------------------ PRE-SCAN: FIND WHICH STORES HAVE 603 ------------------
-        store_has_603 = {}
+        # ---- Normalize storeid helper ----
+        def _norm_storeid(sid):
+            if sid is None:
+                return None
+            if isinstance(sid, str):
+                s = sid.strip()
+                if s.isdigit():
+                    return int(s)
+                return s
+            return sid
+        
+        # -------- PRE-SCAN: Identify stores that have ANY 603 --------
+        stores_with_603 = set()
         
         for _, _, _, _, _, storeid, subcategory_id in image_paths:
-            if storeid not in store_has_603:
-                store_has_603[storeid] = False
-            if subcategory_id == 603:
-                store_has_603[storeid] = True
-
+            sid = _norm_storeid(storeid)
+            try:
+                subcat = int(subcategory_id)
+            except:
+                subcat = None
+                try:
+                    subcat = int(str(subcategory_id).strip())
+                except:
+                    pass
+        
+            if sid is None:
+                continue
+            if subcat == 603:
+                stores_with_603.add(sid)
+        
+        logger.info(f"Stores with 603 detected: {stores_with_603}")
+        
+        # -------- PROCESS LOOP with correct fallback logic --------
         for filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id in image_paths:
-            # ONLY process subcategory 603 in Visicooler
-            # ------------------ PROCESS 603 PER STORE (fallback to 602) ------------------
-            allowed_603 = store_has_603[storeid]
-            if allowed_603:
-                # Store contains 603 → only allow 603
-                if subcategory_id != 603:
-                    logger.info(f"Skipping {filename} - Store {storeid} has 603, so skipping non-603")
+        
+            sid = _norm_storeid(storeid)
+            if sid is None:
+                logger.warning(f"{filename}: Invalid or missing storeid — skipping")
+                continue
+        
+            try:
+                subcat = int(subcategory_id)
+            except:
+                subcat = None
+                try:
+                    subcat = int(str(subcategory_id).strip())
+                except:
+                    pass
+        
+            store_has_603 = sid in stores_with_603
+        
+            # ---- Correct precedence logic ----
+            if store_has_603:
+                # Store has 603 → ONLY process images with 603
+                if subcat != 603:
+                    logger.info(f"Skipping {filename} — Store {sid} has 603, so ignoring 602")
                     continue
             else:
-                # Store has NO 603 → fallback to 602 only
-                if subcategory_id != 602:
-                    logger.info(f"Skipping {filename} - Store {storeid} has no 603, so only processing 602")
+                # Store does NOT have 603 → ONLY process 602
+                if subcat != 602:
+                    logger.info(f"Skipping {filename} — Store {sid} has no 603, so only processing 602")
                     continue
+        
+            # --- Now continue your normal processing ---
+
             try:
                 iterationid = filesequenceid
 
