@@ -45,8 +45,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         sku_model = YOLO(sku_model_path)
 
         bulk_records = []
-        # ------------------ PRE-SCAN: FIND WHICH STORES HAVE 603 ------------------
-        # ---- Normalize storeid helper ----
+
         def _norm_storeid(sid):
             if sid is None:
                 return None
@@ -56,64 +55,61 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     return int(s)
                 return s
             return sid
-        
-        # -------- PRE-SCAN: Identify stores that have ANY 603 --------
-        stores_with_603 = set()
-        
-        for _, _, _, _, _, storeid, subcategory_id in image_paths:
-            sid = _norm_storeid(storeid)
-            try:
-                subcat = int(subcategory_id)
-            except:
-                subcat = None
-                try:
-                    subcat = int(str(subcategory_id).strip())
-                except:
-                    pass
-        
-            if sid is None:
-                continue
-            if subcat == 603:
-                stores_with_603.add(sid)
-        
-        logger.info(f"Stores with 603 detected: {stores_with_603}")
-        
-        # -------- PROCESS LOOP with correct fallback logic --------
-        for filesequenceid, storename, filename, local_path, s3_key, orig_storeid, subcategory_id in image_paths:
-            canonical_storeid = orig_storeid
+
+        def _get_canonical_storeid(filename, orig_storeid):
+            canonical = orig_storeid
             try:
                 cur.execute("""
-                    SELECT storeid 
+                    SELECT storeid
                     FROM orgi.batchtransactionvisibilityitems
                     WHERE imagefilename = %s
                     LIMIT 1
                 """, (filename,))
-                db_row = cur.fetchone()
-                if db_row and db_row[0] is not None:
-                    canonical_storeid = db_row[0]
-            except Exception as e:
-                logger.debug(f"Could not fetch canonical storeid for {filename}, using original storeid {orig_storeid}: {e}")
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    canonical = row[0]
+            except Exception:
+                pass
+            return canonical
+
+        stores_with_603 = set()
+        for _, _, filename, _, _, orig_storeid, subcategory_id in image_paths:
+            canonical_storeid = _get_canonical_storeid(filename, orig_storeid)
+            sid = _norm_storeid(canonical_storeid)
+            try:
+                subcat = int(subcategory_id)
+            except Exception:
+                try:
+                    subcat = int(str(subcategory_id).strip())
+                except Exception:
+                    continue
+            if sid is None:
+                continue
+            if subcat == 603:
+                stores_with_603.add(sid)
+
+        logger.info(f"Stores with 603 detected: {stores_with_603}")
+
+        for filesequenceid, storename, filename, local_path, s3_key, orig_storeid, subcategory_id in image_paths:
+            canonical_storeid = _get_canonical_storeid(filename, orig_storeid)
             sid = _norm_storeid(canonical_storeid)
             if sid is None:
-                logger.warning(f"{filename}: Invalid or missing storeid (orig={orig_storeid}, db={canonical_storeid}) — skipping")
+                logger.warning(f"{filename}: invalid or missing storeid — skipping")
                 continue
             try:
                 subcat = int(subcategory_id)
-            except:
-                subcat = None
+            except Exception:
                 try:
                     subcat = int(str(subcategory_id).strip())
-                except:
-                    pass
-            store_has_603 = sid in stores_with_603
-        
-            if store_has_603:
+                except Exception:
+                    subcat = None
+            if sid in stores_with_603:
                 if subcat != 603:
-                    logger.info(f"Skipping {filename} — Store {sid} (canonical) has 603, so ignoring {subcat}")
+                    logger.info(f"Skipping {filename} — store {sid} has 603, ignoring {subcat}")
                     continue
             else:
                 if subcat != 602:
-                    logger.info(f"Skipping {filename} — Store {sid} (canonical) has no 603, so only processing 602")
+                    logger.info(f"Skipping {filename} — store {sid} has no 603, only processing 602")
                     continue
 
             try:
@@ -126,83 +122,42 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                 image_height, image_width = image.shape[:2]
 
-                # ---------- ENSURE OUTPUT FOLDER EXISTS ----------
                 os.makedirs(output_folder_path, exist_ok=True)
 
-                # ------------------ GET STORE ID (with fallback) ------------------
-                original_storeid = storeid
-                try:
-                    cur.execute("""
-                        SELECT storeid 
-                        FROM orgi.batchtransactionvisibilityitems 
-                        WHERE imagefilename = %s 
-                        LIMIT 1
-                    """, (filename,))
-                    row = cur.fetchone()
-                    if row:
-                        storeid = row[0]
-                    else:
-                        storeid = original_storeid
-                except Exception as e:
-                    logger.error(f"Failed to fetch storeid for {filename}: {e}")
-                    storeid = original_storeid
+                final_storeid = canonical_storeid
 
-                if storeid is None:
-                    logger.error(
-                        f"StoreID not found for {filename}. Skipping DB inserts for this image."
-                    )
+                if final_storeid is None:
+                    logger.error(f"StoreID not found for {filename}. Skipping DB inserts for this image.")
                     continue
 
-                # ------------------ SHELF DETECTION ------------------
                 shelf_results = shelf_model(local_path, conf=conf_threshold)
                 shelves = []
 
                 for result in shelf_results:
                     scale_h = image_height / result.orig_shape[0]
-
                     for box in result.boxes:
                         cls_id = int(box.cls[0])
-
                         try:
                             name = shelf_model.names[cls_id]
                         except Exception:
                             name = ""
-
                         if cls_id == shelf_class_id or "shelf" in name.lower():
                             _, y1, _, y2 = box.xyxy[0]
                             y1, y2 = int(y1 * scale_h), int(y2 * scale_h)
-
-                            shelves.append({
-                                "top_y": y1,
-                                "bottom_y": y2
-                            })
+                            shelves.append({"top_y": y1, "bottom_y": y2})
 
                 merged_shelves = merge_overlapping_boxes(shelves)
                 num_shelves = len(merged_shelves)
 
-                # ------------------ BUILD REAL SHELF ZONES (YOUR LOGIC) ------------------
                 if num_shelves == 0:
                     logger.warning(f"No shelves detected for {filename}, using full image as single shelf")
-                    shelf_regions = [{
-                        "shelf_id": 1,
-                        "top": 0,
-                        "bottom": image_height
-                    }]
+                    shelf_regions = [{"shelf_id": 1, "top": 0, "bottom": image_height}]
                     num_shelves = 1
-
                 else:
                     shelf_regions = []
                     shelf_id = 1
-
-                    # Region ABOVE first shelf
-                    shelf_regions.append({
-                        "shelf_id": shelf_id,
-                        "top": 0,
-                        "bottom": merged_shelves[0]["top_y"]
-                    })
+                    shelf_regions.append({"shelf_id": shelf_id, "top": 0, "bottom": merged_shelves[0]["top_y"]})
                     shelf_id += 1
-
-                    # Regions BETWEEN shelves
                     for i in range(len(merged_shelves) - 1):
                         shelf_regions.append({
                             "shelf_id": shelf_id,
@@ -210,19 +165,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             "bottom": merged_shelves[i + 1]["top_y"]
                         })
                         shelf_id += 1
-
-                    # Region BELOW last shelf
-                    shelf_regions.append({
-                        "shelf_id": shelf_id,
-                        "top": merged_shelves[-1]["bottom_y"],
-                        "bottom": image_height
-                    })
-
+                    shelf_regions.append({"shelf_id": shelf_id, "top": merged_shelves[-1]["bottom_y"], "bottom": image_height})
                     num_shelves = len(shelf_regions)
 
                 logger.info(f"SHELVES FOUND: {num_shelves}")
                 logger.info(f"SHELF REGIONS: {shelf_regions}")
-               # ------------------ GET CASERID FROM STOREMASTER ------------------
+
                 caserid = 0
                 try:
                     cur.execute("""
@@ -230,10 +178,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         FROM orgi.storemaster
                         WHERE storeid = %s
                         LIMIT 1
-                    """, (storeid,))
-                
+                    """, (final_storeid,))
                     row = cur.fetchone()
-                
                     if row and row[0]:
                         cooler_text = row[0]
                         match = re.search(r'(\d+)', cooler_text)
@@ -242,14 +188,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             logger.info(f"Extracted caserid {caserid} from cooler text '{cooler_text}'")
                         else:
                             logger.warning(f"No numeric value found in cooler text '{cooler_text}', using caserid = 0")
-                
                     else:
-                        logger.warning(f"No cooler info found in storemaster for storeid {storeid}, using caserid = 0")
-                
+                        logger.warning(f"No cooler info found in storemaster for storeid {final_storeid}, using caserid = 0")
                 except Exception as e:
-                    logger.error(f"Failed to fetch or parse cooler size for store {storeid}: {e}")
+                    logger.error(f"Failed to fetch or parse cooler size for store {final_storeid}: {e}")
                     caserid = 0
-                # ------------------ SKU DETECTION ------------------
+
                 sku_results = sku_model(local_path, conf=0.35)
 
                 sku_detections = []
@@ -257,15 +201,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 for result in sku_results:
                     scale_w = image_width / result.orig_shape[1]
                     scale_h = image_height / result.orig_shape[0]
-
                     for box in result.boxes:
                         cls_id = int(box.cls[0])
                         name = sku_model.names[cls_id]
                         x1, y1, x2, y2 = box.xyxy[0]
-
                         x1, y1, x2, y2 = int(x1 * scale_w), int(y1 * scale_h), int(x2 * scale_w), int(y2 * scale_h)
                         center_y = (y1 + y2) // 2
-
                         sku_detections.append({
                             "class_id": cls_id,
                             "name": name,
@@ -285,43 +226,29 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             shelf_sku_map[region["shelf_id"]].append(sku)
                             assigned = True
                             break
-
                     if not assigned:
-                        logger.warning(
-                            f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}"
-                        )
+                        logger.warning(f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}")
 
-                # ------------------ SAVE & UPLOAD ANNOTATED IMAGE ------------------
                 try:
                     if len(sku_results) > 0:
                         rendered_image = sku_results[0].plot()
-
                         for region in shelf_regions:
-                            cv2.line(rendered_image, (0, region["top"]),
-                                     (image_width, region["top"]), (0, 255, 0), 2)
-                            cv2.line(rendered_image, (0, region["bottom"]),
-                                     (image_width, region["bottom"]), (0, 0, 255), 2)
-
+                            cv2.line(rendered_image, (0, region["top"]), (image_width, region["top"]), (0, 255, 0), 2)
+                            cv2.line(rendered_image, (0, region["bottom"]), (image_width, region["bottom"]), (0, 0, 255), 2)
                         output_path = os.path.join(output_folder_path, f"segmented_{filename}")
                         cv2.imwrite(output_path, rendered_image)
-
                         s3_key_annotated = f"ModelResults/Visicooler_{cyclecountid}/segmented_{filename}"
                         s3_handler.upload_file_to_s3(output_path, s3_key_annotated)
                         logger.info(f"Uploaded segmented image to S3: {s3_key_annotated}")
-
                 except Exception as e:
                     logger.error(f"Failed to generate/upload annotated image for {filename}: {e}")
 
-                # ------------------ MASTER + TRANSACTION INSERT ------------------
                 iterationtranid = 1
 
                 for shelf_id, sku_list in shelf_sku_map.items():
                     productsequenceno = 1
-
                     for sku in sku_list:
                         x1, y1, x2, y2 = sku["bbox"]
-
-                        # MASTER INSERT (required by FK)
                         cur.execute("""
                         INSERT INTO orgi.coolermetricsmaster
                         (iterationid, iterationtranid, storeid, caserid, modelrun, processed_flag)
@@ -330,12 +257,10 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         """, (
                             iterationid,
                             iterationtranid,
-                            storeid,
+                            final_storeid,
                             caserid,
                             datetime.now()
                         ))
-
-                        # CHILD TRANSACTION
                         cur.execute("""
                         INSERT INTO orgi.coolermetricstransaction
                         (iterationid, iterationtranid, shelfnumber,
@@ -353,7 +278,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             y2,
                             sku["conf"]
                         ))
-
                         iterationtranid += 1
                         productsequenceno += 1
 
@@ -370,5 +294,3 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
         raise
-
-
