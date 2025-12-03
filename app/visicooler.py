@@ -184,12 +184,27 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         cooler_text = row[0]
                         match = re.search(r'(\d+)', cooler_text)
                         if match:
-                            caserid = int(match.group(1))
-                            logger.info(f"Extracted caserid {caserid} from cooler text '{cooler_text}'")
+                            extracted_number = int(match.group(1))
+                            try:
+                                cur.execute("""
+                                    SELECT caserid 
+                                    FROM orgi.puritymapping
+                                    WHERE casername ILIKE %s
+                                    LIMIT 1
+                                """, (f"%{extracted_number}%",))
+                                row2 = cur.fetchone()
+                                if row2:
+                                    caserid = row2[0]      # mapped caserid (1,2,3,...)
+                                    logger.info(f"Mapped caser number {extracted_number} → puritymapping.caserid = {caserid}")
+                                else:
+                                    caserid = 0
+                                    logger.warning(f"No mapped caserid found in puritymapping for number {extracted_number}, using caserid = 0")
+                            except Exception as e:
+                                logger.error(f"Failed mapping caserid using puritymapping for number {extracted_number}: {e}")
+                                caserid = 0
                         else:
                             logger.warning(f"No numeric value found in cooler text '{cooler_text}', using caserid = 0")
-                    else:
-                        logger.warning(f"No cooler info found in storemaster for storeid {final_storeid}, using caserid = 0")
+                            caserid = 0
                 except Exception as e:
                     logger.error(f"Failed to fetch or parse cooler size for store {final_storeid}: {e}")
                     caserid = 0
