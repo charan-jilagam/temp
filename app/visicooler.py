@@ -103,15 +103,18 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     subcat = int(str(subcategory_id).strip())
                 except Exception:
                     subcat = None
+            should_skip = False
             if sid in stores_with_603:
                 if subcat != 603:
+                    should_skip = True
                     logger.info(f"Skipping {filename} — store {sid} has 603, ignoring {subcat}")
-                    continue
             else:
                 if subcat != 602:
+                    should_skip=True
                     logger.info(f"Skipping {filename} — store {sid} has no 603, only processing 602")
-                    continue
-
+            if should_skip:
+                logger.warning(f"ACTUAL SKIP EXECUTED → {filename} (sid={sid}, subcat={subcat})")
+                continue
             try:
                 iterationid = filesequenceid
 
