@@ -89,6 +89,10 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 stores_with_603.add(sid)
 
         logger.info(f"Stores with 603 detected: {stores_with_603}")
+        cur.execute("SELECT COALESCE(MAX(iterationid), 0) FROM orgi.coolermetricsmaster")
+        row = cur.fetchone()
+        current_iteration = row[0] + 1  # new batch iteration id
+        logger.info(f"Using iteration ID for this batch: {current_iteration}")
 
         for filesequenceid, storename, filename, local_path, s3_key, orig_storeid, subcategory_id in image_paths:
             canonical_storeid = _get_canonical_storeid(filename, orig_storeid)
@@ -116,7 +120,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 logger.warning(f"ACTUAL SKIP EXECUTED → {filename} (sid={sid}, subcat={subcat})")
                 continue
             try:
-                iterationid = filesequenceid
+                iterationid = current_iteration
 
                 image = cv2.imread(local_path)
                 if image is None:
