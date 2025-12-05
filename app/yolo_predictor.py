@@ -47,14 +47,45 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
     os.makedirs(os.path.dirname(csv_output_path), exist_ok=True)
     save_dir = None
     predict_dir = "runs/detect"
+    stores_with_603 = set()
     
+    for _, _, filename, _, _, storeid, subcategory_id in image_paths:
+        try:
+            subcat = int(subcategory_id)
+        except:
+            continue
+        if subcat == 603:
+            stores_with_603.add(storeid)
+    
+    logger.info(f"Stores containing 603: {stores_with_603}")
+    filtered_images = []
+    
+    for _, storename, filename, local_path, s3_key, storeid, subcategory_id in image_paths:
+    
+        try:
+            subcat = int(subcategory_id)
+        except:
+            continue
+    
+        if storeid in stores_with_603:
+            if subcat == 603:
+                filtered_images.append(os.path.join(image_folder, filename))
+        else:
+            if subcat == 602:
+                filtered_images.append(os.path.join(image_folder, filename))
+    
+    logger.info(f"Images selected after filtering: {len(filtered_images)}")
+    
+    if not filtered_images:
+        logger.warning("No images match the store filtering logic — skipping YOLO inference.")
+        return cyclecountid, False
     use_cache = False
     if os.path.exists(csv_output_path) and os.path.exists(predict_dir):
         try:
             df_check = pd.read_csv(csv_output_path)
             csv_images = set(df_check['imagefilename'].unique())
-            folder_images = set([f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
-            if csv_images == folder_images:
+            filtered_set = set([os.path.basename(f) for f in filtered_images])
+            if csv_images == filtered_set:
                 use_cache = True
                 for folder in sorted(os.listdir(predict_dir), reverse=True):
                     full_path = os.path.join(predict_dir, folder)
@@ -65,12 +96,13 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
         except Exception as e:
             logger.warning(f"Failed to check cached CSV: {e}. Regenerating predictions.")
 
+
     if not use_cache:
         logger.info("Regenerating YOLO predictions.")
         try:
             model = YOLO(model_path)
             logger.info(f"Loaded YOLO model from {model_path}")
-            results = model.predict(source=image_folder, conf=0.4, save=True)
+            results = model.predict(source=filtered_images, conf=0.35, save=True)
             save_dir = results[0].save_dir if results else None
             logger.info(f"YOLO predictions saved to directory: {save_dir}")
 
