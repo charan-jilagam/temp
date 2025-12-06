@@ -102,7 +102,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
         try:
             model = YOLO(model_path)
             logger.info(f"Loaded YOLO model from {model_path}")
-            results = model.predict(source=filtered_images, conf=0.35, save=True)
+            results = model.predict(source=filtered_images, conf=0.25, save=True)
             save_dir = results[0].save_dir if results else None
             logger.info(f"YOLO predictions saved to directory: {save_dir}")
 
