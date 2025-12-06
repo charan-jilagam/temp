@@ -15,7 +15,7 @@
   },
   "yolo_config": {
     "yaml_path": "data/data 1.yaml",
-    "model_path": "data/yolov8l_v1.1_4554.ptt",
+    "model_path": "data/yolov8l_v1.1_4554.pt",
     "image_source_s3_folder": "STORE_IMAGES/",
     "output_s3_folder": "ModelResults/",
     "csv_output_path": "outputs/prediction_output.csv",
