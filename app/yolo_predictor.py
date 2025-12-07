@@ -9,6 +9,20 @@ import torch
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+def remap_class_id(cls_id: int) -> int:
+    """
+    Normalizes certain class IDs (750ml variants → 500ml).
+    Applies only to this program and does NOT modify YOLO model.
+    """
+    MODEL1_CLASS_REMAP = {
+        20: 19,  
+        27: 26,  
+        45: 44,  
+        68: 66,  
+        95: 94,  
+        81: 79 
+    }
+    return MODEL1_CLASS_REMAP.get(cls_id, cls_id)
 
 def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, modelname, s3_bucket_name, s3_folder, conn, cur, s3_handler, image_paths, cyclecountid_override=None):
     """Run YOLO predictions and save results to CSV and database."""
@@ -111,6 +125,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 image_name = os.path.basename(r.path)
                 for box in r.boxes:
                     class_id = int(box.cls[0])
+                    class_id = remap_class_id(class_id)
                     conf = float(box.conf[0])
                     prediction_data.append({
                         'imagefilename': image_name,
@@ -175,7 +190,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                     cur=cur,
                     modelname=modelname,
                     imagefilename=imagefilename,
-                    classid=int(row['classid']),
+                    classid=remap_class_id(int(row['classid'])),
                     inference=float(row['inference']),
                     modelrun=now,
                     cyclecountid=cyclecountid,
