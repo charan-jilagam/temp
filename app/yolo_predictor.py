@@ -10,14 +10,15 @@ import torch
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def should_ignore_class(cls_id: int, class_names: dict) -> bool:
+def should_ignore_class(cls_id: int, class_names: list) -> bool:
     """
     Returns True if the predicted class should be ignored based on rules.
     Currently ignores any class whose name contains '700ml' or '750ml'.
     """
-    name = class_names.get(cls_id, "").lower()
+    name = str(class_names[cls_id]).lower() if cls_id < len(class_names) else ""
     ignore_keywords = ["700ml", "750ml"]
     return any(keyword in name for keyword in ignore_keywords)
+
 
 def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, modelname, s3_bucket_name, s3_folder, conn, cur, s3_handler, image_paths, cyclecountid_override=None):
     """Run YOLO predictions and save results to CSV and database."""
@@ -121,7 +122,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 for box in r.boxes:
                     class_id = int(box.cls[0])
                     if should_ignore_class(class_id, class_names):
-                        logger.info(f"Ignoring detection: {class_names.get(class_id, 'UNKNOWN')} (class_id={class_id})")
+                        logger.info(f"Ignoring detection: {class_names[class_id] if class_id < len(class_names) else 'UNKNOWN'} (class_id={class_id})")
                         continue
                     conf = float(box.conf[0])
                     prediction_data.append({
