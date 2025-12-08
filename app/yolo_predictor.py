@@ -23,6 +23,14 @@ def remap_class_id(cls_id: int) -> int:
         81: 79 
     }
     return MODEL1_CLASS_REMAP.get(cls_id, cls_id)
+def should_ignore_class(cls_id: int, class_names: dict) -> bool:
+    """
+    Returns True if the predicted class should be ignored based on rules.
+    Currently ignores any class whose name contains '700ml' or '750ml'.
+    """
+    name = class_names.get(cls_id, "").lower()
+    ignore_keywords = ["700ml", "750ml"]
+    return any(keyword in name for keyword in ignore_keywords)
 
 def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, modelname, s3_bucket_name, s3_folder, conn, cur, s3_handler, image_paths, cyclecountid_override=None):
     """Run YOLO predictions and save results to CSV and database."""
@@ -125,6 +133,8 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 image_name = os.path.basename(r.path)
                 for box in r.boxes:
                     class_id = int(box.cls[0])
+                    if should_ignore_class(class_id, class_names):
+                        continue
                     class_id = remap_class_id(class_id)
                     conf = float(box.conf[0])
                     prediction_data.append({
