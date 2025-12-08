@@ -11,16 +11,15 @@ import re
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def remap_class_id(cls_id: int) -> int:
-    MODEL_REMAP = {
-        20: 19,
-        27: 26,
-        45: 44,
-        68: 66,
-        95: 94,
-        81: 79
-    }
-    return MODEL_REMAP.get(cls_id, cls_id)
+def should_ignore_class(cls_id: int, class_names: dict) -> bool:
+    """
+    Returns True if the predicted class should be ignored based on rules.
+    Currently ignores any class whose name contains '700ml' or '750ml'.
+    """
+    name = class_names.get(cls_id, "").lower()
+    ignore_keywords = ["700ml", "750ml"]
+
+    return any(keyword in name for keyword in ignore_keywords)
 
 def merge_overlapping_boxes(boxes, threshold=10):
     if not boxes:
@@ -53,7 +52,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
         shelf_model = YOLO(shelf_model_path)
         sku_model = YOLO(sku_model_path)
-
+        class_names = sku_model.names
         bulk_records = []
 
         def _norm_storeid(sid):
@@ -235,7 +234,9 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     scale_h = image_height / result.orig_shape[0]
                     for box in result.boxes:
                         cls_id = int(box.cls[0])
-                        cls_id = remap_class_id(cls_id)
+                        if should_ignore_class(cls_id, class_names):
+                            logger.info(f"Ignoring detection: {class_names[cls_id]} (cls_id={cls_id})")
+                            continue
                         name = sku_model.names[cls_id]
                         x1, y1, x2, y2 = box.xyxy[0]
                         x1, y1, x2, y2 = int(x1 * scale_w), int(y1 * scale_h), int(x2 * scale_w), int(y2 * scale_h)
@@ -304,7 +305,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             iterationtranid,
                             shelf_id,
                             productsequenceno,
-                            remap_class_id(sku["class_id"]),
+                            sku["class_id"],
                             x1,
                             x2,
                             y1,
