@@ -134,6 +134,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 for box in r.boxes:
                     class_id = int(box.cls[0])
                     if should_ignore_class(class_id, class_names):
+                        logger.info(f"Ignoring detection: {class_names[class_id]} (class_id={class_id})")
                         continue
                     class_id = remap_class_id(class_id)
                     conf = float(box.conf[0])
