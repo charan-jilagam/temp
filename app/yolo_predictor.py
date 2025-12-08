@@ -48,7 +48,8 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
     try:
         with open(yaml_path, 'r') as f:
             data = yaml.safe_load(f)
-        class_names = data['names']
+        model = YOLO(model_path)
+        class_names = model.names
         logger.info(f"Loaded class names from {yaml_path}: {class_names}")
     except Exception as e:
         logger.error(f"Failed to load YAML file {yaml_path}: {e}")
