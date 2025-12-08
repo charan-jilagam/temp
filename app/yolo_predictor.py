@@ -9,20 +9,7 @@ import torch
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-def remap_class_id(cls_id: int) -> int:
-    """
-    Normalizes certain class IDs (750ml variants → 500ml).
-    Applies only to this program and does NOT modify YOLO model.
-    """
-    MODEL1_CLASS_REMAP = {
-        20: 19,  
-        27: 26,  
-        45: 44,  
-        68: 66,  
-        95: 94,  
-        81: 79 
-    }
-    return MODEL1_CLASS_REMAP.get(cls_id, cls_id)
+
 def should_ignore_class(cls_id: int, class_names: dict) -> bool:
     """
     Returns True if the predicted class should be ignored based on rules.
@@ -134,9 +121,8 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                 for box in r.boxes:
                     class_id = int(box.cls[0])
                     if should_ignore_class(class_id, class_names):
-                        logger.info(f"Ignoring detection: {class_names[class_id]} (class_id={class_id})")
+                        logger.info(f"Ignoring detection: {class_names.get(class_id, 'UNKNOWN')} (class_id={class_id})")
                         continue
-                    class_id = remap_class_id(class_id)
                     conf = float(box.conf[0])
                     prediction_data.append({
                         'imagefilename': image_name,
@@ -201,7 +187,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                     cur=cur,
                     modelname=modelname,
                     imagefilename=imagefilename,
-                    classid=remap_class_id(int(row['classid'])),
+                    classid=int(row['classid']),
                     inference=float(row['inference']),
                     modelrun=now,
                     cyclecountid=cyclecountid,
