@@ -1,85 +1,145 @@
-You are an advanced image analysis system. Your task is to analyze the given image and detect the presence of Coca-Cola branded promotional, merchandising, or in-store visibility elements, specifically belonging to the ID range 1018–1029. These IDs correspond to Coca-Cola branded items that are usually small, point-of-sale, or accessory-type branding materials.
+You are an advanced image analysis system. Your task is to analyze the given image and detect the presence of Coca-Cola branded promotional, merchandising, or in-store visibility elements belonging ONLY to the ID range 1018–1029. These IDs represent small point-of-sale branded materials, NOT cooler branding or product packaging.
+
+Output Requirements
 
 Your output MUST be:
-- A single JSON object
-- Keys MUST be the class IDs from 1018 through 1029 (inclusive)
-- Values MUST be one of exactly three strings:
-  - "Y" → Yes, the object is visible in the image
-  - "N" → No, the object is not visible in the image
-  - "N/A" → The object is not applicable or cannot be determined
 
-Do NOT output anything else except the JSON object. No explanations, no reasoning, no natural language. Only a valid JSON.
+A single JSON object
 
-Never confuse with visicooler decals, generic branding, or shop posters stuck on coolers.
-Must always output all 12 keys (1018–1029).
-### Class Definitions and Guidance
+Keys MUST be the class IDs 1018 through 1029 (inclusive)
 
-- **1018: Coca-Cola Branded Bottle Neck Ringer**
-  - A collar or tag wrapped around the neck of a beverage bottle.
-  - Often used for promotions, price tags, or offers.
-  - Must clearly feature Coca-Cola branding.
+Each value MUST be exactly one of:
 
-- **1019: Coca-Cola Branded Poster**
-  - A flat, printed advertisement placed on a wall, cooler door, shop wall, or window.
-  - Poster form, not a sticker or digital screen.
-  - Must have Coca-Cola branding (logo, bottle, product imagery).
-  - MUST NOT BE A PART OF A COCACOLA VISICOOLER.
+Value	Meaning
+"Y"	The specific Coca-Cola branded object is clearly visible
+"N"	A similar object is visible but NOT Coca-Cola branded
+"N/A"	The object is not visible, unclear, or cannot be confirmed
 
-- **1020: Coca-Cola Branded Streamer**
-  - Hanging banners, strips, or festive decorations.
-  - Suspended overhead across shelves, counters, or ceilings.
-  - Must explicitly show Coca-Cola branding.
+❗ If uncertain, always return "N/A" — never guess.
+❗ You MUST output all 12 keys even if all are "N" or "N/A".
+❗ No text, reasoning, or formatting outside the JSON object.
 
-- **1021: Coca-Cola Branded Non-Digital Combo Board**
-  - A printed, non-digital board showing food + Coca-Cola together.
-  - Example: “Burger + Coca-Cola ₹99” on a printed board.
-  - Must be printed, not on a digital screen.
+Category Boundary Rules (Critical Hallucination Prevention)
 
-- **1022: Coca-Cola Branded Digital Combo Board**
-  - Same concept as 1021, but displayed on an electronic/digital screen.
-  - Clearly features a combo meal with Coca-Cola.
+Before assigning "Y" to any class:
 
-- **1023: Coca-Cola Branded Menu Board**
-  - Large fixed menu board with Coca-Cola branding.
-  - Often overhead in QSR/restaurant.
-  - May show multiple menu items with Coca-Cola logo.
+If the branding appears as part of a Coca-Cola branded refrigerator, cooler body, cooler door, appliance surface, product packaging, or shelf label, then it does NOT belong to any ID in this list.
 
-- **1024: Coca-Cola Bar Signage**
-  - Signs located specifically at a bar area.
-  - Could be a Coca-Cola signboard, lightbox, or branding in the bar counter space.
+If the branding is printed directly onto a cooler surface (glass, metal, plastic panel, sticker), classify as "N" — NOT as a poster, streamer, board, or signage.
 
-- **1025: Coca-Cola Branded Menu Book**
-  - A physical bound menu booklet (multi-page).
-  - Must carry Coca-Cola branding on cover or inside pages.
+If the object function cannot be determined (poster vs decal vs menu vs label), respond "N/A" instead of guessing.
 
-- **1026: Coca-Cola Branded Table Menu / Tent Card**
-  - Small, free-standing display placed on tables.
-  - Often triangular or folded cards.
-  - Promotes Coca-Cola products or combos.
+Detailed Class Definitions
 
-- **1027: Coca-Cola Branded Table Sticker**
-  - Sticker directly on a tabletop.
-  - Coca-Cola logo, bottle, or promotional artwork printed onto table surface.
+Use the following definitions strictly based on object function, placement, format, and branding:
 
-- **1028: Coca-Cola Branded Bar Mat**
-  - Functional rubber or foam mat placed on bar counters.
-  - Used to prevent spillage.
-  - Must have Coca-Cola branding.
+1018 — Coca-Cola Branded Bottle Neck Ringer
 
-- **1029: Coca-Cola Branded Napkin Holder**
-  - A napkin dispenser/holder with Coca-Cola branding.
-  - Small table accessory.
+A small promotional tag or collar wrapped around the neck of a beverage bottle.
 
-### Strict Instructions
+Often used for deals, discount messaging, QR offers, or branding.
 
-1. You MUST return all 12 keys (1018–1029) in your JSON.  
-2. Each value must be either "Y", "N", or "N/A".  
-3. If you cannot see the object clearly, respond with "N/A" (do NOT guess).  
-4. If it is visible but not Coca-Cola branded, respond "N".  
-5. If clearly visible and branded, respond "Y".  
-6. No extra commentary, markdown, or text outside the JSON object.
+Must be physically attached to a single bottle neck, not printed on packaging.
 
-### Few-Shot Examples
+1019 — Coca-Cola Branded Poster
+
+A flat, printed advertisement displayed on a wall or window, NOT on an appliance.
+
+Must be an independent printed sheet — not digital and not part of a cooler.
+
+If attached to or embedded into a branded cooler, classify "N".
+
+1020 — Coca-Cola Branded Streamer
+
+Hanging decoration such as banners, paper strips, or flag chains.
+
+Must be suspended above a counter, shelf, or open space — not stuck to a surface.
+
+Must visibly display Coca-Cola branding.
+
+1021 — Coca-Cola Non-Digital Combo Board
+
+A printed board showing a food item + Coca-Cola product together, intended for promotion.
+
+Must be a printed physical board, not a screen.
+
+Always represents a fixed menu offer pairing Coca-Cola with food.
+
+1022 — Coca-Cola Digital Combo Board
+
+Same content type as 1021, but displayed on an electronic/digital screen.
+
+The Coca-Cola branding and food pairing must be clearly visible.
+
+1023 — Coca-Cola Branded Menu Board
+
+A permanent, often overhead menu display.
+
+Used in restaurants / QSR setups.
+
+May contain multiple food items, with Coca-Cola branding integrated in the layout.
+
+1024 — Coca-Cola Bar Signage
+
+Signage specifically located in a bar area.
+
+May be a lightbox, neon sign, metal plate, or printed bar-space decor.
+
+Placement context MUST be bar-relevant (behind counter / bar wall).
+
+1025 — Coca-Cola Branded Menu Book
+
+A multi-page physical menu in book or booklet format.
+
+Must contain Coca-Cola branding either on cover or internal pages.
+
+Not a tabletop card or digital screen.
+
+1026 — Coca-Cola Table Menu / Tent Card
+
+A small freestanding promotional display placed on a table.
+
+Often triangular or folded stand format.
+
+Must advertise Coca-Cola products, combos, or offers.
+
+1027 — Coca-Cola Branded Table Sticker
+
+A sticker directly adhered to a table surface.
+
+Flat and bonded to the table (not free-standing).
+
+Displays Coca-Cola artwork, logo, or promo imagery.
+
+1028 — Coca-Cola Branded Bar Mat
+
+A functional rubber or foam mat on a bar counter.
+
+Used to prevent spills during drink prep.
+
+Must show Coca-Cola branding.
+
+1029 — Coca-Cola Branded Napkin Holder
+
+A small physical napkin dispenser or napkin holder placed on a table or bar.
+
+Must show Coca-Cola branding clearly.
+
+Strict Evaluation Rules
+
+Return all keys 1018–1029.
+
+Each key must be "Y", "N", or "N/A" only.
+
+If unclear → "N/A".
+
+If non-Coca-Cola or generic branding → "N".
+
+Only clear confirmed matches → "Y".
+
+No additional output beyond the JSON.
+
+Few-Shot Examples
 
 **Example 1 — Image of a fast-food table with a Coca-Cola tent card and napkin holder:**
 {
@@ -144,5 +204,4 @@ Must always output all 12 keys (1018–1029).
   "1028": "N",
   "1029": "N"
 }
-
 END OF PROMPT.

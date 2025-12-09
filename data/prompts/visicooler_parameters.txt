@@ -1,102 +1,123 @@
-You are analyzing an image that already contains a visicooler. Return only a JSON object with exact keys 1002–1011. No extra text.
+You are analyzing an image that already contains a confirmed visicooler.
+Return only a JSON object containing keys 1002–1011.
+Do not output anything outside the JSON object.
 
-Output Contract:
-Return all keys 1002–1011:
-{"1002":"…","1004":"…", ... ,"1011":"…"}
+Output Contract
 
-Global Rules:
-- If 1001 is "N" or "PARTIAL", then all 1002–1011 MUST be "N/A".
-- If the visicooler brand (1002) is not "Coca-Cola", then 1004–1011 must also be "N/A".
-- Use "Partial" exactly for 1007 when only part of a Coca-Cola visicooler is visible.
-If something is not clearly visible/confirmable → use "N/A" (or "Unknown" only where specified).
+Your output must always include all keys 1002–1011 in this structure:
 
-Use precise text cues and logos. Do not rely on color alone unless the distinctive Coca-Cola/Pepsi marks are visibly present.
+{"1002":"…","1003":"…","1004":"…","1005":"…","1006":"…","1007":"…","1008":"…","1009":"…","1010":"…","1011":"…"}
+
+
+(No extra formatting, newlines, comments, or explanation.)
+
+Global Logic Rules
+
+If the visicooler detection result (1001) was "N" or "PARTIAL", then ALL fields 1002–1011 must be "N/A".
+
+If field 1002 (Brand) is not "Coca-Cola", then fields 1004–1011 must all be "N/A" regardless of visibility.
+
+If something cannot be confirmed visually, is blurry, blocked, or ambiguous → return "N/A" instead of guessing.
+
+Never rely on color alone. Identify branding based on logos, readable markings, shapes, or distinctive Coca-Cola/Pepsi identifiers.
 
 Field Definitions & Decision Rules
-
 1002 — Visicooler Brand
+
 Allowed values: "Coca-Cola", "Pepsi", "Unbranded", "Unknown".
 
-"Coca-Cola": visible Coca-Cola script logo, bottle/can with clear Coke mark, branded crown/topper/side-panel, red + white wave with readable mark.
+Use the following rules:
 
-"Pepsi": visible Pepsi text/logo (red-white-blue globe) on crown/side/topper/door decal.
+"Coca-Cola": Visible Coca-Cola script logo, bottle silhouette, branded crown header, side decal, or unmistakable Coca-Cola branding.
 
-"Unbranded": no brand graphics; plain/neutral styling; no readable brand text.
+"Pepsi": Pepsi wordmark or round globe logo visible (red/white/blue circle).
 
-"Unknown": branding present but too small/blurry/occluded to read.
+"Unbranded": No visible brand graphics or text; plain appliance.
 
-When in doubt between Unbranded vs Unknown:
+"Unknown": Branding appears present but unreadable or partially obstructed.
 
-If you see graphics but cannot read → "Unknown".
+Tie-break rule:
 
-If there are no graphics at all → "Unbranded".
+Graphics present but unreadable → "Unknown"
 
-If 1002 ≠ "Coca-Cola", set 1004–1011 = "N/A" and stop.
+No graphics present → "Unbranded"
+
+If "Coca-Cola" is not selected here, then 1004–1011 must be "N/A".
 
 1004 — Coca-Cola Visicooler Working (Y/N/N/A)
 
-"Y" if any cooling evidence: interior lights on, condensation, uniformly cold “sweat” on bottles, frost on evaporator edges, running fan patterns behind grilles.
+"Y" if there is any evidence of operation:
 
-"N" if clearly off: dark interior (while surroundings are well-lit), unplugged with door ajar and no cold signs, empty/damaged with no cooling cues.
+Interior lighting
 
-"N/A" if 1002 ≠ "Coca-Cola" or cannot assess.
+Condensation / fogging
+
+Frost near evaporator
+
+Bottles visually cold
+
+Fan or airflow pattern visible
+
+"N" if clearly unplugged, dark (while surrounding environment is lit), empty, open with no cooling characteristics.
+
+"N/A" if brand ≠ Coca-Cola or uncertain.
 
 1005 — Coca-Cola Visicooler Pics Allowed (Y/N/N/A)
 
-"N" if a prohibition sign (“No Photos/No Camera”) is clearly visible near/onto the cooler/area.
+"N" if a visible no-camera/no-photo sign exists near/on the cooler.
 
-"Y" if no such sign in view (do not infer policy).
+"Y" if no such restriction is visible (do not infer rules).
 
-"N/A" if 1002 ≠ "Coca-Cola"` or sign visibility cannot be determined.
+"N/A" if brand ≠ Coca-Cola or cannot confirm.
 
-1006 — Coca-Cola Visicooler Visibility From Street (Y/N/N/A)
+1006 — Coca-Cola Visicooler Visible From Street (Y/N/N/A)
 
-"Y" if cooler is clearly visible from outside (e.g., through shop window/door line-of-sight).
+"Y" if cooler is placed such that it is clearly viewable through a storefront window or open entrance from the street.
 
-"N" if it’s deep inside / blocked such that a passerby from street couldn’t see it.
+"N" if placed too deep or obstructed to be visible from outside.
 
-"N/A" if no exterior/window context is visible or 1002 ≠ "Coca-Cola"`.
+"N/A" if there is no visible external reference or brand ≠ Coca-Cola.
 
-1007 — Coca-Cola Visicooler Visibility In Shop (Fully/Partial/Not visible/N/A)
+1007 — Coca-Cola Visicooler Visibility in Shop (Fully/Partial/Not visible/N/A)
 
-"Fully": unobstructed and prominent (entire door area seen).
+"Fully" if cooler is clearly and fully visible.
 
-"Partial": partly blocked (racks/people/objects obscure meaningful portion).
+"Partial" if obstructed by people, shelves, counters, or image cropping.
 
-"Not visible": cannot locate within interior context.
+"Not visible" if interior context is visible but cooler cannot be located.
 
-"N/A" if 1002 ≠ "Coca-Cola"`.
+"N/A" if brand ≠ Coca-Cola.
 
 1008 — Coca-Cola Visicooler Accessible (Y/N/N/A)
 
-"Y": appears reachable to customers (front-of-house, no “Staff Only” barrier, no visible locks/chains).
+"Y" if customers could reasonably access it.
 
-"N": behind counter/rope barrier, locked chain/visible lock label, or “Staff Only.”
+"N" if inside a blocked zone, behind counter, locked, or marked “Staff Only.”
 
-"N/A" if 1002 ≠ "Coca-Cola"` or unclear.
+"N/A" if unclear or brand ≠ Coca-Cola.
 
 1009 — Coca-Cola Brand Shelf Strip (Y/N/N/A)
 
-"Y": Coca-Cola shelf edge branding (red strips with Coca-Cola marks) on the cooler’s shelves or immediate rack area.
+"Y" if Coca-Cola shelf-edge branding is visible directly on cooler shelves or immediate rack area.
 
-"N": shelves visible but no Coca-Cola shelf strips.
+"N" if shelves are visible without Coca-Cola strips.
 
-"N/A": cannot see shelf edges clearly or 1002 ≠ "Coca-Cola"`.
+"N/A" if unclear or brand ≠ Coca-Cola.
 
 1010 — Coca-Cola Planogram Compliance (Y/N/N/A)
 
-"Y": products arranged per typical Coca-Cola planogram (clear vertical/horizontal blocks, consistent SKU rows, no major mixing).
+"Y" if products appear arranged in logical Coca-Cola merchandising blocks (horizontal/vertical continuity).
 
-"N": chaotic mix, non-Coke brands interspersed, significant deviation.
+"N" if mixed brands, random placement, low facing discipline.
 
-"N/A": contents not visible/assessable or 1002 ≠ "Coca-Cola"`.
+"N/A" if items are unclear, obscured, or brand ≠ Coca-Cola.
 
 1011 — Coca-Cola Cooler Purity (100% pure/Impure/N/A)
 
-"100% pure": contents entirely Coca-Cola company products (e.g., Coke, Sprite, Fanta, Thums Up, etc.), with no other brand present.
+"100% pure" if all visible beverages are Coca-Cola company products (e.g., Coke, Sprite, Fanta, Thums Up, Limca, etc.).
 
-"Impure": any non-Coca-Cola brand observed inside.
+"Impure" if any non-Coca-Cola brand is present inside the cooler.
 
-"N/A": contents unclear or 1002 ≠ "Coca-Cola"`.
+"N/A" if contents cannot be assessed or brand ≠ Coca-Cola.
 
-Return only the JSON object with 1002–1011.
+Return only the JSON object with keys 1002–1011.
