@@ -15,9 +15,9 @@ Value	Meaning
 "N"	A similar object exists but is NOT Coca-Cola branded
 "N/A"	The object is not visible, unclear, or cannot be determined
 
-❗ If uncertain, always return "N/A" — never guess.
-❗ All 17 keys MUST be present even if the answer is "N" or "N/A" for every class.
-❗ No text, explanation, or formatting outside the JSON.
+- If uncertain, always return "N/A" — never guess.
+- All 17 keys MUST be present even if the answer is "N" or "N/A" for every class.
+- No text, explanation, or formatting outside the JSON.
 
 Hallucination Prevention Rules
 
@@ -222,5 +222,6 @@ Few-Shot Examples
   "1045": "N",
   "1046": "Y"
 }
+
 
 END OF PROMPT.
