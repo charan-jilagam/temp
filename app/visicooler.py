@@ -86,11 +86,9 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
             if val is None:
                 return None
             s = str(val).strip()
-            # remove commas, trailing .0 and stray chars
             s = s.replace(',', '')
             if s.endswith('.0'):
                 s = s[:-2]
-            # sometimes there's parentheses etc. keep only leading digits
             m = re.search(r'(\d+)', s)
             if m:
                 try:
@@ -98,29 +96,20 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                 except Exception:
                     return None
             return None
-
-        # -------------------------
-        # PHASE 0: Build store -> images mapping (pre-scan)
-        # -------------------------
-        store_images = {}  # sid -> list of image rows (keep original tuple)
-        filename_to_row = {}  # helper map in case we need it
+        store_images = {}  
+        filename_to_row = {}
         for row in image_paths:
             fileseqid, storename, filename, local_path, s3_key, orig_storeid, subcategory_id = row
             canonical_storeid = _get_canonical_storeid(filename, orig_storeid)
             sid = _norm_storeid(canonical_storeid)
             if sid is None:
-                # keep record but grouped under None so we can log later
                 sid = None
             subcat_norm = normalize_subcat(subcategory_id)
-            # store normalized values in a tuple variant so we don't re-parse later
             stored_row = (fileseqid, storename, filename, local_path, s3_key, canonical_storeid, subcat_norm, subcategory_id)
             store_images.setdefault(sid, []).append(stored_row)
             filename_to_row[filename] = stored_row
 
-        # -------------------------
-        # PHASE 1: Decide per-store target subcategory (603 if any, else 602 if any, else None)
-        # -------------------------
-        store_target = {}  # sid -> target_subcat (603/602/None)
+        store_target = {}  
         for sid, rows in store_images.items():
             has_603 = any(r[6] == 603 for r in rows)
             if has_603:
@@ -130,45 +119,32 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
             if has_602:
                 store_target[sid] = 602
                 continue
-            # fallback: None -> you can choose to process any available image for this store
             store_target[sid] = None
 
         logger.info(f"Store targets (603 else 602): { {k: v for k,v in store_target.items() if v is not None} }")
 
-        # get iteration id for this run
         cur.execute("SELECT COALESCE(MAX(iterationid), 0) FROM orgi.coolermetricsmaster")
         row = cur.fetchone()
         current_iteration = row[0] + 1  # new batch iteration id
         logger.info(f"Using iteration ID for this batch: {current_iteration}")
 
-        # -------------------------
-        # PHASE 2: Process images according to the decided target_subcat per store
-        # -------------------------
-        # We'll use the filesequenceid as the base for iterationtranid to avoid collisions
         for sid, rows in store_images.items():
-            target = store_target.get(sid)  # 603, 602 or None (fallback)
-            # if sid is None (no store id), just try to process rows individually
+            target = store_target.get(sid) 
             for stored_row in rows:
                 fileseqid, storename, filename, local_path, s3_key, canonical_storeid, subcat_norm, original_subcat_raw = stored_row
-                # If a target was decided, only process rows that match it.
-                # If target is None, we will process ANY row (fallback). If you want to skip fallback, change this behavior.
                 if target is not None:
                     if subcat_norm != target:
                         logger.info(f"Skipping {filename} — store {sid} target={target}, file subcat={subcat_norm}")
                         logger.warning(f"ACTUAL SKIP EXECUTED → {filename} (sid={sid}, subcat={subcat_norm})")
                         continue
                 else:
-                    # fallback: if subcat is None we still try to process the image, but log warning
                     if subcat_norm is None:
                         logger.warning(f"Processing {filename} for store {sid} (no 603/602 found for store). Raw subcat='{original_subcat_raw}'")
-                # now process the image
                 try:
                     iterationid = current_iteration
-                    # use fileseqid as a base unique tran id for this file.
-                    # If fileseqid might collide across batches, consider mapping to an internal counter.
+                    # use fileseqid as a base unique tran id for this 
                     iterationtranid = int(fileseqid) if (fileseqid is not None and str(fileseqid).isdigit()) else None
                     if iterationtranid is None:
-                        # fallback unique tran id: use a timestamp-based small int
                         iterationtranid = int(datetime.now().timestamp() * 1000) % 100000000
 
                     image = cv2.imread(local_path)
@@ -288,6 +264,192 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 "bbox": (x1, y1, x2, y2),
                                 "center_y": center_y
                             })
+                    cap_keywords = ["cap", "glass cap", "glasscap", "bottle cap", "bottlecap"]
+                    cap_class_ids = set()
+                    for cid, cname in class_names.items():
+                        lname = cname.lower()
+                        if "cap" in lname or "glasscap" in lname or "glass cap" in lname:
+                            cap_class_ids.add(int(cid))
+                    if not cap_class_ids:
+                        cap_class_ids = {
+                            29, 30, 34, 35, 45, 47, 48, 55, 56,
+                            78, 80, 81, 86, 101, 111, 112
+                        }
+                    
+                    def is_cap_of_front(front, cap):
+                        fx1, fy1, fx2, fy2 = front["bbox"]
+                        cx1, cy1, cx2, cy2 = cap["bbox"]
+                    
+                        fcx = (fx1 + fx2) / 2.0
+                        fcy = (fy1 + fy2) / 2.0
+                        ccx = (cx1 + cx2) / 2.0
+                        ccy = (cy1 + cy2) / 2.0
+                    
+                        f_height = max(1.0, (fy2 - fy1))
+                        f_width  = max(1.0, (fx2 - fx1))
+                    
+                        if not (fcx - f_width * 0.3 <= ccx <= fcx + f_width * 0.3):
+                            return False
+                    
+                        vertical_diff = fcy - ccy
+                        if vertical_diff <= 0:
+                            return False
+                        if vertical_diff > f_height * 0.7:
+                            return False
+                        if ccy < fcy - f_height * 0.3:
+                            return False
+                        return True
+                    
+                    front_skus = []
+                    cap_detections = []
+                    for sku in sku_detections:
+                        if sku["class_id"] in cap_class_ids:
+                            cap_detections.append(sku)
+                        else:
+                            front_skus.append(sku)
+                    
+                    shelf_buckets = {}
+                    for region in shelf_regions:
+                        shelf_buckets[region["shelf_id"]] = []
+                    for f in front_skus:
+                        assigned = False
+                        for region in shelf_regions:
+                            if region["top"] <= f["center_y"] <= region["bottom"]:
+                                shelf_buckets[region["shelf_id"]].append(f)
+                                assigned = True
+                                break
+                        if not assigned:
+                            best = None; bestd = 1e9
+                            for region in shelf_regions:
+                                mid = (region["top"] + region["bottom"]) / 2.0
+                                d = abs(f["center_y"] - mid)
+                                if d < bestd:
+                                    bestd = d; best = region["shelf_id"]
+                            shelf_buckets[best].append(f)
+                    
+                    def determine_brand_from_cap_label(label):
+                        lname = label.lower()
+                        if "coke" in lname or "coca" in lname:
+                            return "coke"
+                        if "sprite" in lname:
+                            return "sprite"
+                        if "fanta" in lname:
+                            return "fanta"
+                        if "kinley" in lname:
+                            return "kinley"
+                        if "pepsi" in lname:
+                            return "pepsi"
+                        # fallback
+                        return "other"
+                    
+                    brand_default_pet = {
+                        "coke": 13,    # Coke 1000ml PET
+                        "sprite": 102, # Sprite 1000ml PET
+                        "fanta": 37,   # Fanta Orange 1000ml PET
+                        "kinley": 53,  # Kinley Water 1000ml PET
+                        "pepsi": 87,   # Pepsi 1000ml PET (if needed)
+                        "other": 82    # Other PET
+                    }
+                    brand_glass_equivalent = {
+                        "coke": 17,    # Coke 250ml Glass
+                        "sprite": 106, # Sprite 250ml Glass
+                        "fanta": 41,   # Fanta 250ml Glass
+                        "kinley": 49   # Kinley Soda 250ml Glass
+                    }
+                    
+                    def find_classid_for_brand_size(brand, size_token):
+                        brand = brand.lower()
+                        for cid, cname in class_names.items():
+                            cl = cname.lower()
+                            if brand in cl and size_token in cl:
+                                return int(cid)
+                        return None
+                    
+                    inferred_skus = []
+                    for cap in cap_detections:
+                        cap_label = class_names.get(cap["class_id"], "").lower()
+                        cap_brand = determine_brand_from_cap_label(cap_label)
+                        cap_is_glass = ("glass" in cap_label)
+                        cap_shelf = None
+                        for region in shelf_regions:
+                            if region["top"] <= cap["center_y"] <= region["bottom"]:
+                                cap_shelf = region["shelf_id"]
+                                break
+                        if cap_shelf is None:
+                            # fallback to nearest shelf
+                            best = None; bestd = 1e9
+                            for region in shelf_regions:
+                                mid = (region["top"] + region["bottom"]) / 2.0
+                                d = abs(cap["center_y"] - mid)
+                                if d < bestd:
+                                    bestd = d; best = region["shelf_id"]
+                            cap_shelf = best
+                    
+                        # among fronts in same shelf, find the closest by vertical distance
+                        candidate_fronts = shelf_buckets.get(cap_shelf, [])
+                        closest_front = None
+                        bestd = 1e9
+                        for front in candidate_fronts:
+                            d = abs(front["center_y"] - cap["center_y"])
+                            if d < bestd:
+                                bestd = d; closest_front = front
+                    
+                        if closest_front and is_cap_of_front(closest_front, cap):
+                            continue
+                    
+                        inferred_class = None
+                        if cap_is_glass:
+                            inferred_class = brand_glass_equivalent.get(cap_brand, brand_default_pet.get(cap_brand, brand_default_pet["other"]))
+                        else:
+                            if closest_front:
+                                front_name = closest_front["name"].lower()
+                                # try to find common size tokens
+                                size_token = None
+                                for tok in ["2250", "1500", "1000", "750", "700", "600", "500", "250", "175"]:
+                                    if tok in front_name:
+                                        size_token = tok
+                                        break
+                                if size_token is None:
+                                    size_token = "250" 
+                                inferred_class = find_classid_for_brand_size(cap_brand, size_token)
+                                if inferred_class is None:
+                                    inferred_class = brand_default_pet.get(cap_brand, brand_default_pet["other"])
+                            else:
+                                inferred_class = brand_default_pet.get(cap_brand, brand_default_pet["other"])
+                    
+                        duplicate = False
+                        if closest_front and inferred_class is not None:
+                            if closest_front and inferred_class is not None:
+                                inferred_name = class_names[inferred_class].lower()
+                                front_name = closest_front["name"].lower()
+                            
+                                # same brand? (sprite, coke, fanta, kinley, pepsi)
+                                same_brand = any(b in inferred_name and b in front_name
+                                                 for b in ["coke", "sprite", "fanta", "kinley", "pepsi"])
+                                if same_brand:
+                                    # distance check
+                                    fcx = (closest_front["bbox"][0] + closest_front["bbox"][2]) / 2
+                                    ccx = (cap["bbox"][0] + cap["bbox"][2]) / 2
+                                    front_width = closest_front["bbox"][2] - closest_front["bbox"][0]
+                            
+                                    if abs(fcx - ccx) < front_width * 0.35:
+                                        duplicate = True
+
+                        if duplicate:
+                            continue
+                        if inferred_class is None:
+                            continue
+
+                        inferred_skus.append({
+                            "class_id": int(inferred_class),
+                            "name": class_names[int(inferred_class)],
+                            "conf": cap["conf"],
+                            "bbox": cap["bbox"],  
+                            "center_y": cap["center_y"],
+                            "inferred": True
+                        })
+                    
+                    sku_detections.extend(inferred_skus)
 
                     logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
                     shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
@@ -353,7 +515,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 sku["conf"]
                             ))
                             productsequenceno += 1
-
                     conn.commit()
                     logger.info(f"✅ Inserted for iteration {iterationid} , tranid {iterationtranid} : {sum(len(v) for v in shelf_sku_map.values())} products")
 
@@ -361,7 +522,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     logger.error(f"Error processing image {filename}: {e}")
                     conn.rollback()
                     continue
-
         return bulk_records
     except Exception as e:
         logger.error(f"Error in visicooler analysis: {e}")
