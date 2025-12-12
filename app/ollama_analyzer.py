@@ -160,6 +160,15 @@ def run_ollama_analysis(image_paths, image_folder, output_csv, config_path, clas
         for idx, (filesequenceid, storename, filename, local_path, s3_key, storeid, subcategory_id) in enumerate(image_paths):
             logger.info(f"Processing image {idx + 1}/{len(image_paths)}: {filename}")
             try:
+                try:
+                    subcat = int(str(subcategory_id).strip())
+                except:
+                    subcat = None
+                
+                # Skip visicooler subcategories
+                if subcat in [601, 602, 603, 604]:
+                    logger.info(f"Skipping {filename} — subcategory {subcat} is excluded from Ollama analysis.")
+                    continue
                 # Validate image file
                 if not os.path.exists(local_path):
                     logger.error(f"Image file not found: {local_path}")
