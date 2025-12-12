@@ -3,7 +3,7 @@ val: ../valid/images
 test: ../test/images
 
 nc: 93
-[
+names: [
 '7Up 250ml Glass Bottle',
 '7Up Nimbooz 2250ml PET',
 '7Up Nimbooz 250ml PET',
