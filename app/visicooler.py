@@ -17,7 +17,7 @@ def should_ignore_class(cls_id: int, class_names: dict) -> bool:
 
     return any(keyword in name for keyword in ignore_keywords)
 
-def merge_overlapping_boxes(boxes, threshold=10):
+def merge_overlapping_boxes(boxes, threshold=3):
     if not boxes:
         return []
     boxes = sorted(boxes, key=lambda b: b["top_y"])
@@ -171,7 +171,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 name = ""
                             if cls_id == shelf_class_id:
                                 _, y1, _, y2 = box.xyxy[0]
-                                y1, y2 = int(y1 * scale_h), int(y2 * scale_h)
+                                y1, y2 = map(int, box.xyxy[0][1::2])
                                 shelves.append({"top_y": y1, "bottom_y": y2})
 
                     merged_shelves = merge_overlapping_boxes(shelves)
