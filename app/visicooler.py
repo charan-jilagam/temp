@@ -12,12 +12,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def should_ignore_class(cls_id: int, class_names: dict) -> bool:
-    """
-    Returns True if the predicted class should be ignored based on rules.
-    Currently ignores any class whose name contains '700ml' or '750ml'.
-    """
     name = class_names.get(cls_id, "").lower()
-    ignore_keywords = ["700ml", "750ml"]
+    ignore_keywords = ["700ml", "750ml", "visicooler", "cooler"]
 
     return any(keyword in name for keyword in ignore_keywords)
 
@@ -82,7 +78,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
             return canonical
 
         def normalize_subcat(val):
-            """Robust normalization for subcategory values -> returns int or None."""
             if val is None:
                 return None
             s = str(val).strip()
@@ -174,7 +169,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 name = shelf_model.names[cls_id]
                             except Exception:
                                 name = ""
-                            if cls_id == shelf_class_id or "shelf" in name.lower():
+                            if cls_id == shelf_class_id:
                                 _, y1, _, y2 = box.xyxy[0]
                                 y1, y2 = int(y1 * scale_h), int(y2 * scale_h)
                                 shelves.append({"top_y": y1, "bottom_y": y2})
