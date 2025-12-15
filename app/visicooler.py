@@ -169,7 +169,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 name = shelf_model.names[cls_id]
                             except Exception:
                                 name = ""
-                            if cls_id == shelf_class_id:
+                            if shelf_model.names.get(cls_id, "").lower() in ("shelf", "shelfs", "shelves"):
                                 _, y1, _, y2 = box.xyxy[0]
                                 y1, y2 = map(int, box.xyxy[0][1::2])
                                 shelves.append({"top_y": y1, "bottom_y": y2})
