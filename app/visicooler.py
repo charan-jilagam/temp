@@ -175,23 +175,55 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 shelves.append({"top_y": y1, "bottom_y": y2})
 
                     merged_shelves = merge_overlapping_boxes(shelves)
+                    
+                    shelf_regions = []
+                    
                     if len(merged_shelves) == 0:
+                        # No shelf dividers → treat whole image as single shelf
                         logger.warning(f"No shelves detected for {filename}, using full image as single shelf")
-                        shelf_regions = [{"shelf_id": 1, "top": 0, "bottom": image_height}]
+                        shelf_regions = [{
+                            "shelf_id": 1,
+                            "top": 0,
+                            "bottom": image_height
+                        }]
+                    
+                    elif len(merged_shelves) == 2:
+                        shelf_regions = [
+                            {
+                                "shelf_id": 1,
+                                "top": 0,
+                                "bottom": merged_shelves[0]["top_y"]
+                            },
+                            {
+                                "shelf_id": 2,
+                                "top": merged_shelves[0]["bottom_y"],
+                                "bottom": merged_shelves[1]["top_y"]
+                            },
+                            {
+                                "shelf_id": 3,
+                                "top": merged_shelves[1]["bottom_y"],
+                                "bottom": image_height
+                            }
+                        ]
+                    
                     else:
-                        shelf_regions = []
                         shelf_id = 1
-                        # top region above first detected shelf
-                        shelf_regions.append({"shelf_id": shelf_id, "top": 0, "bottom": merged_shelves[0]["top_y"]})
+                    
+                        shelf_regions.append({
+                            "shelf_id": shelf_id,
+                            "top": 0,
+                            "bottom": merged_shelves[0]["top_y"]
+                        })
                         shelf_id += 1
-                        for i in range(len(merged_shelves) - 1):
+                    
+                        for i in range(1, len(merged_shelves)):
                             shelf_regions.append({
                                 "shelf_id": shelf_id,
-                                "top": merged_shelves[i]["bottom_y"],
-                                "bottom": merged_shelves[i + 1]["top_y"]
+                                "top": merged_shelves[i - 1]["bottom_y"],
+                                "bottom": merged_shelves[i]["top_y"]
                             })
                             shelf_id += 1
-                        shelf_regions.append({"shelf_id": shelf_id, "top": merged_shelves[-1]["bottom_y"], "bottom": image_height})
+
 
                     logger.info(f"SHELVES FOUND: {len(shelf_regions)}")
                     logger.info(f"SHELF REGIONS: {shelf_regions}")
