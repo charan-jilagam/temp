@@ -175,40 +175,22 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 shelves.append({"top_y": y1, "bottom_y": y2})
 
                     merged_shelves = merge_overlapping_boxes(shelves)
-                    
                     shelf_regions = []
                     
-                    if len(merged_shelves) == 0:
-                        # No shelf dividers → treat whole image as single shelf
-                        logger.warning(f"No shelves detected for {filename}, using full image as single shelf")
-                        shelf_regions = [{
+                    num_bars = len(merged_shelves)
+                    
+                    # Case 0: no shelf bars → single shelf region
+                    if num_bars == 0:
+                        shelf_regions.append({
                             "shelf_id": 1,
                             "top": 0,
                             "bottom": image_height
-                        }]
-                    
-                    elif len(merged_shelves) == 2:
-                        shelf_regions = [
-                            {
-                                "shelf_id": 1,
-                                "top": 0,
-                                "bottom": merged_shelves[0]["top_y"]
-                            },
-                            {
-                                "shelf_id": 2,
-                                "top": merged_shelves[0]["bottom_y"],
-                                "bottom": merged_shelves[1]["top_y"]
-                            },
-                            {
-                                "shelf_id": 3,
-                                "top": merged_shelves[1]["bottom_y"],
-                                "bottom": image_height
-                            }
-                        ]
+                        })
                     
                     else:
                         shelf_id = 1
                     
+                        # Top region (products can sit on top of first shelf bar)
                         shelf_regions.append({
                             "shelf_id": shelf_id,
                             "top": 0,
@@ -216,13 +198,22 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         })
                         shelf_id += 1
                     
-                        for i in range(1, len(merged_shelves)):
+                        # Regions between consecutive shelf bars
+                        for prev_bar, next_bar in zip(merged_shelves[:-1], merged_shelves[1:]):
                             shelf_regions.append({
                                 "shelf_id": shelf_id,
-                                "top": merged_shelves[i - 1]["bottom_y"],
-                                "bottom": merged_shelves[i]["top_y"]
+                                "top": prev_bar["bottom_y"],
+                                "bottom": next_bar["top_y"]
                             })
                             shelf_id += 1
+                    
+                        # Bottom region ONLY for small coolers (≤ 2 bars)
+                        if num_bars <= 2:
+                            shelf_regions.append({
+                                "shelf_id": shelf_id,
+                                "top": merged_shelves[-1]["bottom_y"],
+                                "bottom": image_height
+                            })
 
 
                     logger.info(f"SHELVES FOUND: {len(shelf_regions)}")
