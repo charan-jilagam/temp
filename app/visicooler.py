@@ -473,20 +473,20 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             # Find nearest SAME-BRAND front
                             closest = None
                             bestd = 1e9
-                    
+                            #
                             for f in same_brand_fronts:
-                                if id(f) in used_front_ids:
-                                    continue
                                 d = abs(f["center_y"] - cap["center_y"])
                                 if d < bestd:
                                     bestd = d
                                     closest = f
+                            
                             logger.info(
-                            f"SHELF {shelf_id} | CAP {cap['name']} → "
-                            f"{closest['name'] if closest else 'NO MATCH'}"
+                                f"SHELF {shelf_id} | CAP {cap['name']} → "
+                                f"{closest['name'] if closest else 'NO MATCH'}"
                             )
+                            
                             if closest:
-                                # Convert cap → exact SKU of nearest front
+                                # ✅ ONE SKU PER CAP (even if same SKU repeats)
                                 final_skus.append({
                                     "class_id": closest["class_id"],
                                     "name": closest["name"],
@@ -495,20 +495,28 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                     "center_y": cap["center_y"],
                                     "inferred": True
                                 })
-                                used_front_ids.add(id(closest))
                             else:
-                                # No same-brand SKU → keep inferred fallback
+                                # Fallback: inferred SKU by BRAND (not center_y)
                                 inferred = next(
-                                    (i for i in inferred_skus if i["center_y"] == cap["center_y"]),
+                                    (i for i in inferred_skus if extract_brand(i["name"]) == cap_brand),
                                     None
                                 )
                                 if inferred:
                                     final_skus.append(inferred)
+
                     
                         # Add remaining fronts that were NOT replaced by caps
-                        for f in shelf_fronts:
-                            if id(f) not in used_front_ids:
-                                final_skus.append(f)
+                        # Keep extra fronts ONLY if fronts > caps
+                        if len(shelf_fronts) > len(shelf_caps):
+                            shelf_fronts_sorted = sorted(
+                                shelf_fronts,
+                                key=lambda f: f["center_y"]
+                            )
+                            
+                            if len(shelf_fronts_sorted) > len(shelf_caps):
+                                final_skus.extend(shelf_fronts_sorted[len(shelf_caps):])
+
+
 
                     sku_detections = final_skus
 
@@ -523,7 +531,15 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 break
                         if not assigned:
                             logger.warning(f"SKU NOT ASSIGNED TO ANY SHELF: {sku['name']} at y={sku['center_y']}")
-
+                    for shelf_id, sku_list in shelf_sku_map.items():
+                        counter = defaultdict(int)
+                    
+                        for sku in sku_list:
+                            counter[sku["name"]] += 1
+                    
+                        logger.info(f"FINAL COUNT — Shelf {shelf_id}")
+                        for name, count in counter.items():
+                            logger.info(f"    {count} × {name}")
                     # plotting / annotated image (unchanged)
                     try:
                         if len(sku_results) > 0:
