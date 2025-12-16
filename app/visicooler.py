@@ -309,7 +309,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     for f in front_skus:
                         assigned = False
                         for region in shelf_regions:
-                            if region["top"] <= f["center_y"] <= region["bottom"]:
+                            if region["top"] <= f["center_y"] < region["bottom"]:
                                 shelf_buckets[region["shelf_id"]].append(f)
                                 assigned = True
                                 break
@@ -427,10 +427,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             "center_y": cap["center_y"],
                             "inferred": True
                         })
-                    # =========================================
-                    # FINAL SKU SELECTION (SINGLE POINT OF TRUTH)
-                    # =========================================
-                    
                     def extract_brand(name: str):
                         lname = name.lower()
                         if "coke" in lname or "coca" in lname:
@@ -444,70 +440,67 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         if "pepsi" in lname:
                             return "pepsi"
                         return "other"
-                    
-                    
-                    # -------------------------------
-                    # GROUP BY BRAND
-                    # -------------------------------
-                    front_by_brand = defaultdict(list)
-                    cap_by_brand   = defaultdict(list)
-                    
-                    for f in front_skus:
-                        front_by_brand[extract_brand(f["name"])].append(f)
-                    
-                    for c in inferred_skus:
-                        cap_by_brand[extract_brand(c["name"])].append(c)
-                    
+                    # =========================================
+                    # PER-SHELF, PER-CAP BRAND-STRICT LOGIC
+                    # =========================================
                     
                     final_skus = []
                     
-                    # -------------------------------
-                    # PER-BRAND DOMINANCE
-                    # -------------------------------
-                    for brand in set(front_by_brand) | set(cap_by_brand):
+                    for region in shelf_regions:
+                        shelf_id = region["shelf_id"]
                     
-                        fronts = front_by_brand.get(brand, [])
-                        caps   = cap_by_brand.get(brand, [])
+                        shelf_fronts = [
+                            f for f in front_skus
+                            if region["top"] <= f["center_y"] <= region["bottom"]
+                        ]
                     
-                        # 🟢 If no caps → always keep fronts
-                        if not caps:
-                            final_skus.extend(fronts)
-                            continue
+                        shelf_caps = [
+                            c for c in cap_detections
+                            if region["top"] <= c["center_y"] <= region["bottom"]
+                        ]
                     
-                        # 🟢 If caps do NOT dominate → keep fronts
-                        if len(caps) <= len(fronts):
-                            final_skus.extend(fronts)
-                            continue
+                        used_front_ids = set()
                     
-                        # 🔴 CAPS DOMINATE → replace closest fronts
-                        used_fronts = set()
+                        for cap in shelf_caps:
+                            cap_brand = extract_brand(cap["name"])
                     
-                        for cap in caps:
+                            # SAME-BRAND fronts ONLY on this shelf
+                            same_brand_fronts = [
+                                f for f in shelf_fronts
+                                if extract_brand(f["name"]) == cap_brand
+                            ]
+                    
+                            # Find nearest SAME-BRAND front
                             closest = None
                             bestd = 1e9
                     
-                            for f in fronts:
-                                if id(f) in used_fronts:
-                                    continue
+                            for f in same_brand_fronts:
                                 d = abs(f["center_y"] - cap["center_y"])
                                 if d < bestd:
                                     bestd = d
                                     closest = f
                     
                             if closest:
-                                used_fronts.add(id(closest))
+                                # Convert cap → exact SKU of nearest front
+                                final_skus.append({
+                                    "class_id": closest["class_id"],
+                                    "name": closest["name"],
+                                    "conf": cap["conf"],
+                                    "bbox": cap["bbox"],
+                                    "center_y": cap["center_y"],
+                                    "inferred": True
+                                })
+                                used_front_ids.add(id(closest))
+                            else:
+                                # No same-brand SKU → keep inferred fallback
+                                final_skus.append(cap)
                     
-                            final_skus.append(cap)
-                    
-                        logger.info(
-                            f"BRAND OVERRIDE → {brand.upper()} | "
-                            f"fronts={len(fronts)}, caps={len(caps)} → CAPS WIN"
-                        )
-                    
-                    logger.info(f"FINAL SKU COUNT AFTER BRAND LOGIC: {len(final_skus)}")
+                        # Add remaining fronts that were NOT replaced by caps
+                        for f in shelf_fronts:
+                            if id(f) not in used_front_ids:
+                                final_skus.append(f)
                     
                     sku_detections = final_skus
-
 
                     logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
                     shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
