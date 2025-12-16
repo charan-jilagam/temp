@@ -458,7 +458,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             c for c in cap_detections
                             if region["top"] <= c["center_y"] <= region["bottom"]
                         ]
-                    
+
                         used_front_ids = set()
                     
                         for cap in shelf_caps:
@@ -479,7 +479,10 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 if d < bestd:
                                     bestd = d
                                     closest = f
-                    
+                            logger.info(
+                            f"SHELF {shelf_id} | CAP {cap['name']} → "
+                            f"{closest['name'] if closest else 'NO MATCH'}"
+                            )
                             if closest:
                                 # Convert cap → exact SKU of nearest front
                                 final_skus.append({
@@ -499,7 +502,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         for f in shelf_fronts:
                             if id(f) not in used_front_ids:
                                 final_skus.append(f)
-                    
+
                     sku_detections = final_skus
 
                     logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
