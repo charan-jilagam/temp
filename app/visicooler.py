@@ -7,6 +7,7 @@ from app.config_loader import load_config
 from app.s3_handler import S3Handler
 from datetime import datetime
 import re
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -430,25 +431,83 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     # FINAL SKU SELECTION (SINGLE POINT OF TRUTH)
                     # =========================================
                     
-                    front_count = len(front_skus)
-                    cap_count = len(inferred_skus)
+                    def extract_brand(name: str):
+                        lname = name.lower()
+                        if "coke" in lname or "coca" in lname:
+                            return "coke"
+                        if "sprite" in lname:
+                            return "sprite"
+                        if "fanta" in lname:
+                            return "fanta"
+                        if "kinley" in lname:
+                            return "kinley"
+                        if "pepsi" in lname:
+                            return "pepsi"
+                        return "other"
                     
-                    if cap_count > front_count:
-                        # CAPS exceed PRODUCTS → trust PRODUCTS
-                        final_skus = front_skus
-                        mode = "FRONT"
-                    else:
-                        # PRODUCTS >= CAPS → trust CAPS
-                        final_skus = inferred_skus
-                        mode = "CAP"
                     
-                    logger.info(
-                        f"FINAL SKU MODE={mode} | "
-                        f"front={front_count}, caps={cap_count}, final={len(final_skus)}"
-                    )
+                    # -------------------------------
+                    # GROUP BY BRAND
+                    # -------------------------------
+                    front_by_brand = defaultdict(list)
+                    cap_by_brand   = defaultdict(list)
                     
-                    # 🔒 From here on, ONLY use final_skus
+                    for f in front_skus:
+                        front_by_brand[extract_brand(f["name"])].append(f)
+                    
+                    for c in inferred_skus:
+                        cap_by_brand[extract_brand(c["name"])].append(c)
+                    
+                    
+                    final_skus = []
+                    
+                    # -------------------------------
+                    # PER-BRAND DOMINANCE
+                    # -------------------------------
+                    for brand in set(front_by_brand) | set(cap_by_brand):
+                    
+                        fronts = front_by_brand.get(brand, [])
+                        caps   = cap_by_brand.get(brand, [])
+                    
+                        # 🟢 If no caps → always keep fronts
+                        if not caps:
+                            final_skus.extend(fronts)
+                            continue
+                    
+                        # 🟢 If caps do NOT dominate → keep fronts
+                        if len(caps) <= len(fronts):
+                            final_skus.extend(fronts)
+                            continue
+                    
+                        # 🔴 CAPS DOMINATE → replace closest fronts
+                        used_fronts = set()
+                    
+                        for cap in caps:
+                            closest = None
+                            bestd = 1e9
+                    
+                            for f in fronts:
+                                if id(f) in used_fronts:
+                                    continue
+                                d = abs(f["center_y"] - cap["center_y"])
+                                if d < bestd:
+                                    bestd = d
+                                    closest = f
+                    
+                            if closest:
+                                used_fronts.add(id(closest))
+                    
+                            final_skus.append(cap)
+                    
+                        logger.info(
+                            f"BRAND OVERRIDE → {brand.upper()} | "
+                            f"fronts={len(fronts)}, caps={len(caps)} → CAPS WIN"
+                        )
+                    
+                    logger.info(f"FINAL SKU COUNT AFTER BRAND LOGIC: {len(final_skus)}")
+                    
                     sku_detections = final_skus
+
 
                     logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
                     shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
