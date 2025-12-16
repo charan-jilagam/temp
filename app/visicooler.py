@@ -458,65 +458,72 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             c for c in cap_detections
                             if region["top"] <= c["center_y"] <= region["bottom"]
                         ]
+                    
+                        # ---- group fronts & caps by brand ----
+                        fronts_by_brand = defaultdict(list)
+                        for f in shelf_fronts:
+                            fronts_by_brand[extract_brand(f["name"])].append(f)
+                    
+                        caps_by_brand = defaultdict(list)
+                        for c in shelf_caps:
+                            caps_by_brand[extract_brand(c["name"])].append(c)
+                    
+                        all_brands = set(fronts_by_brand.keys()) | set(caps_by_brand.keys())
+                    
+                        for brand in all_brands:
+                            fronts = fronts_by_brand.get(brand, [])
+                            caps = caps_by_brand.get(brand, [])
+                    
+                            final_count = max(len(fronts), len(caps))
+                            if len(caps) > len(fronts):
+                                logger.warning(
+                                    f"SHELF {shelf_id} | BRAND {brand} | CAPS > FRONTS ({len(caps)} > {len(fronts)})"
+                                )
 
-                        used_front_ids = set()
-                    
-                        for cap in shelf_caps:
-                            cap_brand = extract_brand(cap["name"])
-                    
-                            # SAME-BRAND fronts ONLY on this shelf
-                            same_brand_fronts = [
-                                f for f in shelf_fronts
-                                if extract_brand(f["name"]) == cap_brand
-                            ]
-                    
-                            # Find nearest SAME-BRAND front
-                            closest = None
-                            bestd = 1e9
-                            #
-                            for f in same_brand_fronts:
-                                d = abs(f["center_y"] - cap["center_y"])
-                                if d < bestd:
-                                    bestd = d
-                                    closest = f
-                            
                             logger.info(
-                                f"SHELF {shelf_id} | CAP {cap['name']} → "
-                                f"{closest['name'] if closest else 'NO MATCH'}"
+                                f"SHELF {shelf_id} | BRAND {brand} | "
+                                f"fronts={len(fronts)} caps={len(caps)} → final={final_count}"
                             )
-                            
-                            if closest:
-                                # ✅ ONE SKU PER CAP (even if same SKU repeats)
-                                final_skus.append({
-                                    "class_id": closest["class_id"],
-                                    "name": closest["name"],
-                                    "conf": cap["conf"],
-                                    "bbox": cap["bbox"],
-                                    "center_y": cap["center_y"],
-                                    "inferred": True
-                                })
+                    
+                            chosen_sku = None
+                    
+                            # Prefer FRONT SKU (real detection)
+                            if fronts:
+                                chosen = sorted(fronts, key=lambda x: x["conf"], reverse=True)[0]
+                                chosen_sku = {
+                                    "class_id": chosen["class_id"],
+                                    "name": chosen["name"],
+                                    "conf": chosen["conf"],
+                                    "bbox": chosen["bbox"],
+                                    "center_y": chosen["center_y"],
+                                    "inferred": False
+                                }
+                    
+                            # Fallback to inferred SKU
                             else:
-                                # Fallback: inferred SKU by BRAND (not center_y)
                                 inferred = next(
-                                    (i for i in inferred_skus if extract_brand(i["name"]) == cap_brand),
+                                    (i for i in inferred_skus if extract_brand(i["name"]) == brand),
                                     None
                                 )
                                 if inferred:
-                                    final_skus.append(inferred)
+                                    chosen_sku = inferred
+                    
+                            if chosen_sku is None:
+                                logger.warning(f"SHELF {shelf_id} | BRAND {brand} → NO SKU FOUND")
+                                continue
+                    
+                            # 🔥 ADD EXACT COUNT
+                            for i in range(final_count):
+                                sku_copy = chosen_sku.copy()
+                                sku_copy["center_y"] = (
+                                    region["top"] + region["bottom"]
+                                ) // 2
+                                final_skus.append(sku_copy)
 
                     
-                        # Add remaining fronts that were NOT replaced by caps
-                        # Keep extra fronts ONLY if fronts > caps
-                        if len(shelf_fronts) > len(shelf_caps):
-                            shelf_fronts_sorted = sorted(
-                                shelf_fronts,
-                                key=lambda f: f["center_y"]
-                            )
-                            
-                            if len(shelf_fronts_sorted) > len(shelf_caps):
-                                final_skus.extend(shelf_fronts_sorted[len(shelf_caps):])
-
-
+                    # =========================================
+                    # END FINAL PER-BRAND LOGIC
+                    # =========================================
 
                     sku_detections = final_skus
 
