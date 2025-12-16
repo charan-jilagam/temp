@@ -29,6 +29,25 @@ If the branding is printed directly onto a cooler surface (glass, metal, plastic
 
 If the object function cannot be determined (poster vs decal vs menu vs label), respond "N/A" instead of guessing.
 
+Multiple "Y" responses are expected and correct.
+Do NOT limit detection to one or two objects.
+
+Confidence Calibration Rule
+
+Large-format objects (posters, boards, digital displays):
+- Require full object visibility AND readable branding to mark "Y".
+
+Small-format objects (bar mats, table stickers, napkin holders, neck ringers):
+- Partial visibility is acceptable IF:
+  - Object shape is identifiable
+  - Coca-Cola branding is partially visible
+
+Before answering:
+
+Individually scan the image for each class ID.
+Do NOT stop evaluation after detecting one positive class.
+Each class must be independently evaluated.
+
 Detailed Class Definitions
 
 Use the following definitions strictly based on object function, placement, format, and branding:
@@ -204,4 +223,5 @@ Few-Shot Examples
   "1028": "N",
   "1029": "N"
 }
+
 END OF PROMPT.
