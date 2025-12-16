@@ -158,7 +158,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                     # shelf detection
                     imgsz = max(image_height, image_width)
-                    shelf_results = shelf_model(local_path, conf=conf_threshold, imgsz=imgsz)
+                    shelf_results = shelf_model(local_path, conf=conf_threshold)
                     shelves = []
                     for result in shelf_results:
                         # guard division by zero if orig_shape is malformed
@@ -262,7 +262,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
                     # SKU detection
                     imgsz = max(image_height, image_width)
-                    sku_results = sku_model(local_path, conf=0.35, imgsz=imgsz)
+                    sku_results = sku_model(local_path, conf=0.35)
                     sku_detections = []
                     for result in sku_results:
                         if result.orig_shape is None or len(result.orig_shape) < 2:
