@@ -498,7 +498,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 used_front_ids.add(id(closest))
                             else:
                                 # No same-brand SKU → keep inferred fallback
-                                final_skus.append(cap)
+                                inferred = next(
+                                    (i for i in inferred_skus if i["center_y"] == cap["center_y"]),
+                                    None
+                                )
+                                if inferred:
+                                    final_skus.append(inferred)
                     
                         # Add remaining fronts that were NOT replaced by caps
                         for f in shelf_fronts:
