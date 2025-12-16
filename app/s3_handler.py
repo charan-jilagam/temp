@@ -1,6 +1,7 @@
 import os
 import boto3
 import re
+import mimetypes
 from botocore.exceptions import ClientError, NoCredentialsError
 import logging
 
@@ -59,17 +60,10 @@ class S3Handler:
             failed_files = []
             for filesequenceid, storename, filename, storeid, subcategory_id in image_data:
                 try:
-                    # Log the storename and filename for debugging
                     logger.debug(f"Processing filesequenceid: {filesequenceid}, storename: {storename}, filename: {filename}")
-
-                    # Sanitize the filename to remove prefixes and invalid characters
                     clean_filename = self.sanitize_filename(filename)
                     local_path = os.path.join(temp_dir, clean_filename)
-                    
-                    # Remove any directory prefix from the filename for S3 key construction
                     base_filename = os.path.basename(filename)
-                    
-                    # List of possible S3 keys, prioritizing the configured image_folder_s3
                     clean_storename = re.sub(r'[\\:*?"<>|]', '', storename.replace(":", ".").strip())
                     possible_s3_keys = [
                         f"{self.image_folder_s3}{clean_storename}/{base_filename}",  # Subfolder: Testing-Images/storename/filename
@@ -117,10 +111,22 @@ class S3Handler:
             raise
 
     def upload_file_to_s3(self, file_path, s3_key):
-        """Upload a file to S3 bucket."""
+        """Upload a file to S3 bucket with correct content type for web viewing."""
         try:
-            self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
-            logger.info(f"Uploaded {file_path} to S3: {s3_key}")
+            content_type, _ = mimetypes.guess_type(file_path)
+            extra_args = {}
+            if content_type:
+                extra_args["ContentType"] = content_type
+            self.s3_client.upload_file(
+                file_path,
+                self.bucket_name,
+                s3_key,
+                ExtraArgs=extra_args
+            )
+            logger.info(
+                f"Uploaded {file_path} to S3: {s3_key} "
+                f"(ContentType={content_type})"
+            )
         except NoCredentialsError:
             logger.error("Invalid AWS credentials provided.")
             raise
