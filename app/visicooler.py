@@ -294,30 +294,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             78, 80, 81, 86, 101, 111, 112
                         }
                     
-                    def is_cap_of_front(front, cap):
-                        fx1, fy1, fx2, fy2 = front["bbox"]
-                        cx1, cy1, cx2, cy2 = cap["bbox"]
-                    
-                        fcx = (fx1 + fx2) / 2.0
-                        fcy = (fy1 + fy2) / 2.0
-                        ccx = (cx1 + cx2) / 2.0
-                        ccy = (cy1 + cy2) / 2.0
-                    
-                        f_height = max(1.0, (fy2 - fy1))
-                        f_width  = max(1.0, (fx2 - fx1))
-                    
-                        if not (fcx - f_width * 0.3 <= ccx <= fcx + f_width * 0.3):
-                            return False
-                    
-                        vertical_diff = fcy - ccy
-                        if vertical_diff <= 0:
-                            return False
-                        if vertical_diff > f_height * 0.7:
-                            return False
-                        if ccy < fcy - f_height * 0.3:
-                            return False
-                        return True
-                    
                     front_skus = []
                     cap_detections = []
                     for sku in sku_detections:
@@ -384,15 +360,19 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                         return None
                     
                     inferred_skus = []
+                    
                     for cap in cap_detections:
                         cap_label = class_names.get(cap["class_id"], "").lower()
                         cap_brand = determine_brand_from_cap_label(cap_label)
                         cap_is_glass = ("glass" in cap_label)
+                    
+                        # Determine shelf
                         cap_shelf = None
                         for region in shelf_regions:
                             if region["top"] <= cap["center_y"] <= region["bottom"]:
                                 cap_shelf = region["shelf_id"]
                                 break
+                    
                         if cap_shelf is None:
                             # fallback to nearest shelf
                             best = None; bestd = 1e9
@@ -403,7 +383,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                     bestd = d; best = region["shelf_id"]
                             cap_shelf = best
                     
-                        # among fronts in same shelf, find the closest by vertical distance
+                        # Find nearest front SKU ONLY to infer SIZE (not for suppression)
                         candidate_fronts = shelf_buckets.get(cap_shelf, [])
                         closest_front = None
                         bestd = 1e9
@@ -412,62 +392,63 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             if d < bestd:
                                 bestd = d; closest_front = front
                     
-                        if closest_front and is_cap_of_front(closest_front, cap):
-                            continue
-                    
+                        # Infer class
                         inferred_class = None
+                    
                         if cap_is_glass:
-                            inferred_class = brand_glass_equivalent.get(cap_brand, brand_default_pet.get(cap_brand, brand_default_pet["other"]))
+                            inferred_class = brand_glass_equivalent.get(
+                                cap_brand,
+                                brand_default_pet.get(cap_brand, brand_default_pet["other"])
+                            )
                         else:
+                            size_token = None
                             if closest_front:
                                 front_name = closest_front["name"].lower()
-                                # try to find common size tokens
-                                size_token = None
                                 for tok in ["2250", "1500", "1000", "750", "700", "600", "500", "250", "175"]:
                                     if tok in front_name:
                                         size_token = tok
                                         break
-                                if size_token is None:
-                                    size_token = "250" 
+                            if size_token:
                                 inferred_class = find_classid_for_brand_size(cap_brand, size_token)
-                                if inferred_class is None:
-                                    inferred_class = brand_default_pet.get(cap_brand, brand_default_pet["other"])
-                            else:
+                    
+                            if inferred_class is None:
                                 inferred_class = brand_default_pet.get(cap_brand, brand_default_pet["other"])
                     
-                        duplicate = False
-                        if closest_front and inferred_class is not None:
-                            if closest_front and inferred_class is not None:
-                                inferred_name = class_names[inferred_class].lower()
-                                front_name = closest_front["name"].lower()
-                            
-                                # same brand? (sprite, coke, fanta, kinley, pepsi)
-                                same_brand = any(b in inferred_name and b in front_name
-                                                 for b in ["coke", "sprite", "fanta", "kinley", "pepsi"])
-                                if same_brand:
-                                    # distance check
-                                    fcx = (closest_front["bbox"][0] + closest_front["bbox"][2]) / 2
-                                    ccx = (cap["bbox"][0] + cap["bbox"][2]) / 2
-                                    front_width = closest_front["bbox"][2] - closest_front["bbox"][0]
-                            
-                                    if abs(fcx - ccx) < front_width * 0.35:
-                                        duplicate = True
-
-                        if duplicate:
-                            continue
                         if inferred_class is None:
                             continue
-
+                    
+                        # ✅ ALWAYS ADD
                         inferred_skus.append({
                             "class_id": int(inferred_class),
                             "name": class_names[int(inferred_class)],
                             "conf": cap["conf"],
-                            "bbox": cap["bbox"],  
+                            "bbox": cap["bbox"],
                             "center_y": cap["center_y"],
                             "inferred": True
                         })
+                    # =========================================
+                    # FINAL SKU SELECTION (SINGLE POINT OF TRUTH)
+                    # =========================================
                     
-                    sku_detections.extend(inferred_skus)
+                    front_count = len(front_skus)
+                    cap_count = len(inferred_skus)
+                    
+                    if cap_count > front_count:
+                        # CAPS exceed PRODUCTS → trust PRODUCTS
+                        final_skus = front_skus
+                        mode = "FRONT"
+                    else:
+                        # PRODUCTS >= CAPS → trust CAPS
+                        final_skus = inferred_skus
+                        mode = "CAP"
+                    
+                    logger.info(
+                        f"FINAL SKU MODE={mode} | "
+                        f"front={front_count}, caps={cap_count}, final={len(final_skus)}"
+                    )
+                    
+                    # 🔒 From here on, ONLY use final_skus
+                    sku_detections = final_skus
 
                     logger.info(f"TOTAL SKUs DETECTED: {len(sku_detections)}")
                     shelf_sku_map = {region["shelf_id"]: [] for region in shelf_regions}
