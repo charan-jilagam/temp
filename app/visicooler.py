@@ -475,6 +475,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             bestd = 1e9
                     
                             for f in same_brand_fronts:
+                                if id(f) in used_front_ids:
+                                    continue
                                 d = abs(f["center_y"] - cap["center_y"])
                                 if d < bestd:
                                     bestd = d
