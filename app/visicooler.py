@@ -443,6 +443,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     # =========================================
                     # PER-SHELF, PER-CAP BRAND-STRICT LOGIC
                     # =========================================
+                    def extract_size(name: str):
+                        lname = name.lower()
+                        for tok in ["2250", "1500", "1000", "750", "700", "600", "500", "250", "175"]:
+                            if tok in lname:
+                                return tok
+                        return None
                     
                     final_skus = []
                     
@@ -459,67 +465,80 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             if region["top"] <= c["center_y"] <= region["bottom"]
                         ]
                     
-                        # ---- group fronts & caps by brand ----
-                        fronts_by_brand = defaultdict(list)
+                        # ---- group fronts by (brand, size) ----
+                        fronts_map = defaultdict(list)
                         for f in shelf_fronts:
-                            fronts_by_brand[extract_brand(f["name"])].append(f)
+                            brand = extract_brand(f["name"])
+                            size = extract_size(f["name"])
+                            if size:
+                                fronts_map[(brand, size)].append(f)
                     
-                        caps_by_brand = defaultdict(list)
+                        # ---- group caps by (brand, inferred_size) ----
+                        caps_map = defaultdict(list)
                         for c in shelf_caps:
-                            caps_by_brand[extract_brand(c["name"])].append(c)
+                            brand = extract_brand(c["name"])
                     
-                        all_brands = set(fronts_by_brand.keys()) | set(caps_by_brand.keys())
+                            # infer size from nearest front (already done earlier)
+                            nearest = None
+                            bestd = 1e9
+                            for f in shelf_fronts:
+                                if extract_brand(f["name"]) != brand:
+                                    continue
+                                d = abs(f["center_y"] - c["center_y"])
+                                if d < bestd:
+                                    bestd = d
+                                    nearest = f
                     
-                        for brand in all_brands:
-                            fronts = fronts_by_brand.get(brand, [])
-                            caps = caps_by_brand.get(brand, [])
+                            if nearest:
+                                size = extract_size(nearest["name"])
+                            else:
+                                # fallback: assign to any existing front size of same brand
+                                candidate_sizes = [
+                                    extract_size(f["name"])
+                                    for f in shelf_fronts
+                                    if extract_brand(f["name"]) == brand
+                                ]
+                                size = candidate_sizes[0] if candidate_sizes else None
+                            
+                            if size:
+                                caps_map[(brand, size)].append(c)
+
+                    
+                        all_keys = set(fronts_map.keys()) | set(caps_map.keys())
+                    
+                        for (brand, size) in all_keys:
+                            fronts = fronts_map.get((brand, size), [])
+                            caps = caps_map.get((brand, size), [])
                     
                             final_count = max(len(fronts), len(caps))
-                            if len(caps) > len(fronts):
-                                logger.warning(
-                                    f"SHELF {shelf_id} | BRAND {brand} | CAPS > FRONTS ({len(caps)} > {len(fronts)})"
-                                )
-
+                    
                             logger.info(
-                                f"SHELF {shelf_id} | BRAND {brand} | "
+                                f"SHELF {shelf_id} | {brand} {size}ml | "
                                 f"fronts={len(fronts)} caps={len(caps)} → final={final_count}"
                             )
                     
-                            chosen_sku = None
-                    
-                            # Prefer FRONT SKU (real detection)
+                            # choose best front if available
                             if fronts:
                                 chosen = sorted(fronts, key=lambda x: x["conf"], reverse=True)[0]
-                                chosen_sku = {
-                                    "class_id": chosen["class_id"],
-                                    "name": chosen["name"],
-                                    "conf": chosen["conf"],
-                                    "bbox": chosen["bbox"],
-                                    "center_y": chosen["center_y"],
-                                    "inferred": False
-                                }
-                    
-                            # Fallback to inferred SKU
                             else:
+                                # fallback to inferred SKU
                                 inferred = next(
-                                    (i for i in inferred_skus if extract_brand(i["name"]) == brand),
+                                    (i for i in inferred_skus
+                                     if extract_brand(i["name"]) == brand and extract_size(i["name"]) == size),
                                     None
                                 )
-                                if inferred:
-                                    chosen_sku = inferred
+                                if not inferred:
+                                    logger.warning(
+                                        f"SHELF {shelf_id} | {brand} {size}ml → NO SKU FOUND"
+                                    )
+                                    continue
+                                chosen = inferred
                     
-                            if chosen_sku is None:
-                                logger.warning(f"SHELF {shelf_id} | BRAND {brand} → NO SKU FOUND")
-                                continue
-                    
-                            # 🔥 ADD EXACT COUNT
-                            for i in range(final_count):
-                                sku_copy = chosen_sku.copy()
-                                sku_copy["center_y"] = (
-                                    region["top"] + region["bottom"]
-                                ) // 2
+                            for _ in range(final_count):
+                                sku_copy = chosen.copy()
+                                sku_copy["center_y"] = (region["top"] + region["bottom"]) // 2
                                 final_skus.append(sku_copy)
-
+                    
                     
                     # =========================================
                     # END FINAL PER-BRAND LOGIC
