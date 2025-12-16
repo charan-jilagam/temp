@@ -520,7 +520,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     # plotting / annotated image (unchanged)
                     try:
                         if len(sku_results) > 0:
-                            rendered_image = sku_results[0].plot()
+                            rendered_image = shelf_results[0].plot()
                             for region in shelf_regions:
                                 cv2.line(rendered_image, (0, region["top"]), (image_width, region["top"]), (0, 255, 0), 2)
                                 cv2.line(rendered_image, (0, region["bottom"]), (image_width, region["bottom"]), (0, 0, 255), 2)
