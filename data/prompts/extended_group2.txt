@@ -29,6 +29,24 @@ If the object shape or usage cannot be determined with confidence, respond "N/A"
 
 If branding is partially visible but unreadable or ambiguous, respond "N/A", not "Y".
 
+Multiple "Y" responses are expected and correct.
+Do NOT limit detection to one or two objects.
+
+Confidence Calibration Rule
+
+Large-format objects (posters, boards, digital displays):
+- Require full object visibility AND readable branding to mark "Y".
+
+Small-format objects (bar mats, table stickers, napkin holders, neck ringers):
+- Partial visibility is acceptable IF:
+  - Object shape is identifiable
+  - Coca-Cola branding is partially visible
+Before answering:
+
+Individually scan the image for each class ID.
+Do NOT stop evaluation after detecting one positive class.
+Each class must be independently evaluated.
+
 Detailed Class Definitions
 
 Use the following definitions based strictly on function, placement, physical form, and purpose:
@@ -225,3 +243,4 @@ Few-Shot Examples
 
 
 END OF PROMPT.
+
