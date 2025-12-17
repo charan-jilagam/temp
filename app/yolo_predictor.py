@@ -282,7 +282,7 @@ def run_yolo_predictions(yaml_path, model_path, image_folder, csv_output_path, m
                         prediction_data.append({
                             'imagefilename': image_name,
                             'classid': inferred_classid,
-                            'inference': min(conf, 0.15),  #capped confidence
+                            'inference': min(conf, 0.1),  #capped confidence
                             'x1': x1,
                             'x2': x2,
                             'y1': y1,
