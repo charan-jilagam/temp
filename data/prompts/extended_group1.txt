@@ -80,6 +80,8 @@ Must visibly display Coca-Cola branding.
 
 A printed board showing a food item + Coca-Cola product together, intended for promotion.
 
+may look similar to a poster, but is not a poster. please infer carefully.
+
 Must be a printed physical board, not a screen.
 
 Always represents a fixed menu offer pairing Coca-Cola with food.
@@ -227,5 +229,6 @@ Few-Shot Examples
 }
 
 END OF PROMPT.
+
 
 
