@@ -92,9 +92,11 @@ The Coca-Cola branding and food pairing must be clearly visible.
 
 1023 — Coca-Cola Branded Menu Board
 
-A permanent, often overhead menu display.
+A permanent, often hung on the wall menu display.
 
-Used in restaurants / QSR setups.
+Contains multiple printed items, likely food items.
+
+Can be a large printed board, or even an overhead display of food items. Infer for both.
 
 May contain multiple food items, with Coca-Cola branding integrated in the layout.
 
@@ -225,3 +227,4 @@ Few-Shot Examples
 }
 
 END OF PROMPT.
+
