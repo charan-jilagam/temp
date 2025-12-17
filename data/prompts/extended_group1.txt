@@ -19,13 +19,13 @@ Value	Meaning
 ❗ You MUST output all 12 keys even if all are "N" or "N/A".
 ❗ No text, reasoning, or formatting outside the JSON object.
 
-Category Boundary Rules (Critical Hallucination Prevention)
+Category Boundary Rules 
 
 Before assigning "Y" to any class:
 
 If the branding appears as part of a Coca-Cola branded refrigerator, cooler body, cooler door, appliance surface, product packaging, or shelf label, then it does NOT belong to any ID in this list.
 
-If the branding is printed directly onto a cooler surface (glass, metal, plastic panel, sticker), classify as "N" — NOT as a poster, streamer, board, or signage.
+If the branding is printed directly onto a cooler surface (glass, metal, plastic panel, sticker), classify as "N"
 
 If the object function cannot be determined (poster vs decal vs menu vs label), respond "N/A" instead of guessing.
 
@@ -62,11 +62,11 @@ Must be physically attached to a single bottle neck, not printed on packaging.
 
 1019 — Coca-Cola Branded Poster
 
-A flat, printed advertisement displayed on a wall or window, NOT on an appliance.
+A flat, printed advertisement displayed on a wall or window
 
 Must be an independent printed sheet — not digital and not part of a cooler.
 
-If attached to or embedded into a branded cooler, classify "N".
+Is often hung against walls, are large and contain printed material in red and the coca cola brand name.
 
 1020 — Coca-Cola Branded Streamer
 
@@ -227,4 +227,5 @@ Few-Shot Examples
 }
 
 END OF PROMPT.
+
 
