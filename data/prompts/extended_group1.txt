@@ -86,6 +86,8 @@ Must be a printed physical board, not a screen.
 
 Always represents a fixed menu offer pairing Coca-Cola with food.
 
+Example- "Burger + Coke @ 99", or some similar items. Pay attention to this product.
+
 1022 — Coca-Cola Digital Combo Board
 
 Same content type as 1021, but displayed on an electronic/digital screen.
@@ -229,6 +231,7 @@ Few-Shot Examples
 }
 
 END OF PROMPT.
+
 
 
 
