@@ -257,7 +257,43 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 **exemplar,
                                 "conf": exemplar["conf"] if front_count >= cap_count else 0.1
                             })
+                    # 🔑 FALLBACK: caps exist but no front SKUs detected
+                    if not final_skus and brand_caps:
+                        for brand, cap_count in brand_caps.items():
+                            if cap_count <= 0:
+                                continue
                     
+                            # pick any front SKU of this brand if it exists anywhere
+                            exemplar = None
+                            for sku in front_skus:
+                                if extract_brand(sku["name"]) == brand:
+                                    exemplar = sku
+                                    break
+                    
+                            if exemplar is None:
+                                # hard fallback: infer class from cap name → base SKU class
+                                cap_name = brand
+                                cls_id = next(
+                                    (cid for cid, cname in sku_class_names.items() if cap_name in cname.lower()),
+                                    None
+                                )
+                                if cls_id is None:
+                                    continue
+                                exemplar = {
+                                    "class_id": cls_id,
+                                    "name": sku_class_names[cls_id],
+                                    "conf": 0.1,
+                                    "bbox": (0, 0, 0, 0),
+                                    "center_y": image_height // 2
+                                }
+
+                    
+                            for _ in range(cap_count):
+                                final_skus.append({
+                                    **exemplar,
+                                    "conf": 0.1  # inferred from caps
+                                })
+
                     shelf_sku_map = {shelf_index: final_skus}
 
 
