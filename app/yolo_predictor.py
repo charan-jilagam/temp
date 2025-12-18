@@ -165,7 +165,7 @@ def run_yolo_predictions(
             exemplar_front[key] = cid
 
         # ---------------- CAPS ----------------
-        cap_results = cap_model.predict(source=[r.path], conf=0.1, save=False)
+        cap_results = cap_model.predict(source=[r.path], conf=0.15, save=False)
 
         for cr in cap_results:
             for box in cr.boxes:
@@ -192,7 +192,7 @@ def run_yolo_predictions(
                 prediction_data.append({
                     "imagefilename": image_name,
                     "classid": classid,
-                    "inference": 0.1 if cap_count > front_count else 0.25,
+                    "inference": 0.15 if cap_count > front_count else 0.25,
                     "x1": 0.0,
                     "x2": 0.0,
                     "y1": 0.0,
@@ -213,7 +213,7 @@ def run_yolo_predictions(
         total = store_total_counts[sid]
         logger.info(
             f"STORE {sid} | Inferred (caps): {inferred} | "
-            f"Total products: {total} | Ratio: {inferred}/{total}"
+            f"Total products: {total}"
         )
     logger.info("========================================")
 
