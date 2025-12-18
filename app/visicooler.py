@@ -104,20 +104,26 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
             stored_row = (fileseqid, storename, filename, local_path, s3_key, canonical_storeid, subcat_norm, subcategory_id)
             store_images.setdefault(sid, []).append(stored_row)
             filename_to_row[filename] = stored_row
-
+        #
         store_target = {}  
         for sid, rows in store_images.items():
+            has_605 = any(r[6] == 605 for r in rows)
+            if has_605:
+                store_target[sid] = 605
+                continue
+        
             has_603 = any(r[6] == 603 for r in rows)
             if has_603:
                 store_target[sid] = 603
                 continue
+        
             has_602 = any(r[6] == 602 for r in rows)
             if has_602:
                 store_target[sid] = 602
                 continue
+        
             store_target[sid] = None
-
-        logger.info(f"Store targets (603 else 602): { {k: v for k,v in store_target.items() if v is not None} }")
+        logger.info(f"Store targets (605 > 603 > 602): { {k: v for k,v in store_target.items() if v is not None} }")
 
         cur.execute("SELECT COALESCE(MAX(iterationid), 0) FROM orgi.coolermetricsmaster")
         row = cur.fetchone()
@@ -155,67 +161,85 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     if final_storeid is None:
                         logger.error(f"StoreID not found for {filename}. Skipping DB inserts for this image.")
                         continue
-
+#####
                     # shelf detection
-                    imgsz = max(image_height, image_width)
-                    shelf_results = shelf_model(local_path, conf=conf_threshold)
-                    shelves = []
-                    for result in shelf_results:
-                        # guard division by zero if orig_shape is malformed
-                        if result.orig_shape is None or len(result.orig_shape) < 2 or result.orig_shape[0] == 0:
-                            continue
-                        scale_h = image_height / result.orig_shape[0]
-                        for box in result.boxes:
-                            cls_id = int(box.cls[0])
-                            try:
-                                name = shelf_model.names[cls_id]
-                            except Exception:
-                                name = ""
-                            if shelf_model.names.get(cls_id, "").lower() in ("shelf", "shelfs", "shelves"):
-                                _, y1, _, y2 = box.xyxy[0]
-                                y1, y2 = map(int, box.xyxy[0][1::2])
-                                shelves.append({"top_y": y1, "bottom_y": y2})
-
-                    merged_shelves = merge_overlapping_boxes(shelves)
                     shelf_regions = []
                     
-                    num_bars = len(merged_shelves)
-                    
-                    # Case 0: no shelf bars → single shelf region
-                    if num_bars == 0:
+                    # ======================================
+                    # SUBCATEGORY 605 → SINGLE SHELF IMAGE
+                    # ======================================
+                    if subcat_norm == 605:
+                        merged_shelves=[]
                         shelf_regions.append({
-                            "shelf_id": 1,
+                            "shelf_id": None,   # temporary, assigned later
                             "top": 0,
                             "bottom": image_height
                         })
                     
+                    # ======================================
+                    # SUBCATEGORY 603 / 602 → FULL COOLER
+                    # ======================================
                     else:
-                        shelf_id = 1
+                        imgsz = max(image_height, image_width)
+                        shelf_results = shelf_model(local_path, conf=conf_threshold)
                     
-                        # Top region (products can sit on top of first shelf bar)
-                        shelf_regions.append({
-                            "shelf_id": shelf_id,
-                            "top": 0,
-                            "bottom": merged_shelves[0]["top_y"]
-                        })
-                        shelf_id += 1
+                        shelves = []
+                        for result in shelf_results:
+                            if result.orig_shape is None or result.orig_shape[0] == 0:
+                                continue
+                            for box in result.boxes:
+                                cls_id = int(box.cls[0])
+                                if shelf_model.names.get(cls_id, "").lower() in ("shelf", "shelfs", "shelves"):
+                                    y1, y2 = map(int, box.xyxy[0][1::2])
+                                    shelves.append({"top_y": y1, "bottom_y": y2})
                     
-                        # Regions between consecutive shelf bars
-                        for prev_bar, next_bar in zip(merged_shelves[:-1], merged_shelves[1:]):
+                        merged_shelves = merge_overlapping_boxes(shelves)
+                    
+                        # (rest of your existing shelf-region logic UNCHANGED)
+                    # Assign shelf number for subcat 605 images
+                    if subcat_norm == 605:
+                        # shelf index based on image order per store
+                        shelf_605_rows = [r for r in store_images[sid] if r[6] == 605]
+                        shelf_index = shelf_605_rows.index(stored_row) + 1
+                        shelf_regions[0]["shelf_id"] = shelf_index
+
+#####
+                    # ONLY for full-cooler images=
+                    if subcat_norm != 605:
+                        num_bars = len(merged_shelves)
+                    
+                        if num_bars == 0:
+                            shelf_regions.append({
+                                "shelf_id": 1,
+                                "top": 0,
+                                "bottom": image_height
+                            })
+                    
+                        else:
+                            shelf_id = 1
+                    
                             shelf_regions.append({
                                 "shelf_id": shelf_id,
-                                "top": prev_bar["bottom_y"],
-                                "bottom": next_bar["top_y"]
+                                "top": 0,
+                                "bottom": merged_shelves[0]["top_y"]
                             })
                             shelf_id += 1
                     
-                        # Bottom region ONLY for small coolers (≤ 2 bars)
-                        if num_bars <= 2:
-                            shelf_regions.append({
-                                "shelf_id": shelf_id,
-                                "top": merged_shelves[-1]["bottom_y"],
-                                "bottom": image_height
-                            })
+                            for prev_bar, next_bar in zip(merged_shelves[:-1], merged_shelves[1:]):
+                                shelf_regions.append({
+                                    "shelf_id": shelf_id,
+                                    "top": prev_bar["bottom_y"],
+                                    "bottom": next_bar["top_y"]
+                                })
+                                shelf_id += 1
+                    
+                            if num_bars <= 2:
+                                shelf_regions.append({
+                                    "shelf_id": shelf_id,
+                                    "top": merged_shelves[-1]["bottom_y"],
+                                    "bottom": image_height
+                                })
+
 
 
                     logger.info(f"SHELVES FOUND: {len(shelf_regions)}")
@@ -571,7 +595,10 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     # plotting / annotated image (unchanged)
                     try:
                         if len(sku_results) > 0:
-                            rendered_image = shelf_results[0].plot()
+                            if subcat_norm == 605:
+                                rendered_image = sku_results[0].plot()
+                            else:
+                                rendered_image = shelf_results[0].plot()
                             for region in shelf_regions:
                                 cv2.line(rendered_image, (0, region["top"]), (image_width, region["top"]), (0, 255, 0), 2)
                                 cv2.line(rendered_image, (0, region["bottom"]), (image_width, region["bottom"]), (0, 0, 255), 2)
