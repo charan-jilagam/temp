@@ -132,6 +132,88 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
 
         for sid, rows in store_images.items():
             target = store_target.get(sid) 
+            # =====================================================
+            # FALLBACK CHECK FOR SUBCATEGORY 605 (PER STORE)
+            # =====================================================
+            if target == 605:
+                shelf_605_rows = [r for r in rows if r[6] == 605]
+                detected_shelf_count = len(shelf_605_rows)
+                #
+                expected_shelf_count = None
+                try:
+                    cur.execute("""
+                        SELECT cooler
+                        FROM orgi.storemaster
+                        WHERE storeid = %s
+                        LIMIT 1
+                    """, (sid,))
+                    row = cur.fetchone()
+                
+                    if row and row[0]:
+                        m = re.search(r'(\d+)', row[0])
+                        if m:
+                            caser_num = m.group(1)
+                
+                            cur.execute("""
+                                SELECT noofshelves
+                                FROM orgi.puritymapping
+                                WHERE casername ILIKE %s
+                                LIMIT 1
+                            """, (f"%{caser_num}%",))
+                            prow = cur.fetchone()
+                
+                            if prow:
+                                expected_shelf_count = int(prow[0])
+                except Exception as e:
+                    logger.error(f"Failed to fetch cooler info for store {sid}: {e}")
+            
+                if expected_shelf_count is not None and detected_shelf_count != expected_shelf_count:
+                    logger.warning(
+                        f"FALLBACK TRIGGERED — store {sid}: "
+                        f"expected shelves={expected_shelf_count}, "
+                        f"found 605 images={detected_shelf_count}"
+                    )
+            
+                    # pick any filename from this store
+                    fallback_filename = rows[0][2]
+            
+                    # fetch userid from fileupload
+                    userid = None
+                    try:
+                        cur.execute("""
+                            SELECT userid
+                            FROM orgi.fileupload
+                            WHERE filename = %s
+                            LIMIT 1
+                        """, (fallback_filename,))
+                        urow = cur.fetchone()
+                        if urow:
+                            userid = urow[0]
+                    except Exception:
+                        pass
+            
+                    # create iteration ids
+                    iterationid = current_iteration
+                    iterationtranid = int(datetime.now().timestamp() * 1000) % 100000000
+            
+                    # insert fallback record
+                    cur.execute("""
+                        INSERT INTO orgi.fallback
+                        (storeid, filename, userid, iterationid, iterationtranid)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        sid,
+                        fallback_filename,
+                        userid,
+                        iterationid,
+                        iterationtranid
+                    ))
+            
+                    conn.commit()
+            
+                    # ⛔ SKIP THIS STORE COMPLETELY
+                    continue
+
             for stored_row in rows:
                 fileseqid, storename, filename, local_path, s3_key, canonical_storeid, subcat_norm, original_subcat_raw = stored_row
                 if target is not None:
