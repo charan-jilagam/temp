@@ -182,26 +182,35 @@ def run_yolo_predictions(
                 cap_counts[brand] += 1
 
         # ---------------- FINAL RECONCILIATION ----------------
-        for (brand, size), front_count in front_counts.items():
-            cap_count = cap_counts.get(brand, 0)
-            final_units = max(front_count, cap_count)
-
-            classid = exemplar_front[(brand, size)]
-
+        # group fronts by brand
+        brand_front_totals = defaultdict(int)
+        brand_exemplar = {}
+        
+        for (brand, size), count in front_counts.items():
+            brand_front_totals[brand] += count
+            if brand not in brand_exemplar:
+                brand_exemplar[brand] = exemplar_front[(brand, size)]
+        
+        for brand, front_total in brand_front_totals.items():
+            cap_total = cap_counts.get(brand, 0)
+            final_units = max(front_total, cap_total)
+        
+            classid = brand_exemplar[brand]
+        
             for _ in range(final_units):
                 prediction_data.append({
                     "imagefilename": image_name,
                     "classid": classid,
-                    "inference": 0.15 if cap_count > front_count else 0.3,
+                    "inference": 0.15 if cap_total > front_total else 0.3,
                     "x1": 0.0,
                     "x2": 0.0,
                     "y1": 0.0,
                     "y2": 0.0
                 })
-
+        
             if storeid is not None:
                 store_total_counts[storeid] += final_units
-                if cap_count > front_count:
+                if cap_total > front_total:
                     store_inferred_counts[storeid] += final_units
 
     # --------------------------------------------------
