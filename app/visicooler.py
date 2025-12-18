@@ -244,19 +244,28 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                         
                     final_skus = []
                     
-                    for brand, fronts in brand_fronts.items():
+                    all_brands = set(brand_fronts) | set(brand_caps)
+
+                    for brand in all_brands:
+                        fronts = brand_fronts.get(brand, [])
                         front_count = len(fronts)
                         cap_count = brand_caps.get(brand, 0)
                     
+                        if front_count == 0 and cap_count == 0:
+                            continue
+                    
                         final_count = max(front_count, cap_count)
                     
-                        exemplar = fronts[0]  # size + class fixed by front
+                        exemplar = fronts[0] if fronts else infer_exemplar_from_brand(brand)
+                        if exemplar is None:
+                            continue
                     
                         for _ in range(final_count):
                             final_skus.append({
                                 **exemplar,
                                 "conf": exemplar["conf"] if front_count >= cap_count else 0.1
                             })
+
                     # 🔑 FALLBACK: caps exist but no front SKUs detected
                     if not final_skus and brand_caps:
                         for brand, cap_count in brand_caps.items():
