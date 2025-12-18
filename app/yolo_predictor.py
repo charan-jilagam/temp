@@ -117,13 +117,13 @@ def run_yolo_predictions(
         return cyclecountid, False
 
     # --------------------------------------------------
-    # Store-level counters (NEW)
+    # Store-level counters
     # --------------------------------------------------
     store_total_counts = defaultdict(int)
     store_inferred_counts = defaultdict(int)
 
     # --------------------------------------------------
-    # BASE MODEL → FRONT FACING SKUs
+    # INFERENCE
     # --------------------------------------------------
     results = base_model.predict(source=filtered_images, conf=0.25, save=True)
     save_dir = results[0].save_dir if results else None
@@ -133,17 +133,19 @@ def run_yolo_predictions(
     for r in results:
         image_name = os.path.basename(r.path)
 
-        # resolve storeid once per image
+        # resolve storeid
         storeid = None
         for _, _, fname, _, _, sid, _ in image_paths:
             if fname == image_name:
                 storeid = sid
                 break
 
-        fronts = []
-        inferred_keys = set()
+        # (brand, size) → counts
+        front_counts = defaultdict(int)
+        cap_counts = defaultdict(int)
+        exemplar_front = {}
 
-        # -------- FRONT SKUs --------
+        # ---------------- FRONT SKUs ----------------
         for box in r.boxes:
             cid = int(box.cls[0])
             cname = class_names[cid]
@@ -153,99 +155,62 @@ def run_yolo_predictions(
             if "cap" in cname.lower():
                 continue
 
-            x1, y1, x2, y2 = map(float, box.xyxy[0])
-            center_y = (y1 + y2) / 2
-            conf = float(box.conf[0])
+            brand = extract_brand(cname)
+            size = extract_size(cname)
+            if not brand or not size:
+                continue
 
-            fronts.append({
-                "classname": cname,
-                "center_y": center_y
-            })
+            key = (brand, size)
+            front_counts[key] += 1
+            exemplar_front[key] = cid
 
-            prediction_data.append({
-                "imagefilename": image_name,
-                "classid": cid,
-                "inference": conf,
-                "x1": x1,
-                "x2": x2,
-                "y1": y1,
-                "y2": y2
-            })
-
-            if storeid is not None:
-                store_total_counts[storeid] += 1
-
-        # -------- CAP MODEL → INFERENCE --------
+        # ---------------- CAPS ----------------
         cap_results = cap_model.predict(source=[r.path], conf=0.1, save=False)
 
         for cr in cap_results:
             for box in cr.boxes:
-                cap_cid = int(box.cls[0])
-                cap_name = cap_class_names[cap_cid]
+                cname = cap_class_names[int(box.cls[0])]
 
-                if not is_cap_class(cap_name):
+                if not is_cap_class(cname):
                     continue
 
-                cap_brand = extract_brand(cap_name)
-                if not cap_brand:
+                brand = extract_brand(cname)
+                if not brand:
                     continue
 
-                x1, y1, x2, y2 = map(float, box.xyxy[0])
-                center_y = (y1 + y2) / 2
-                conf = float(box.conf[0])
+                # caps don't carry size → size comes from nearest front later
+                cap_counts[brand] += 1
 
-                nearest = None
-                bestd = 1e9
-                for f in fronts:
-                    if extract_brand(f["classname"]) != cap_brand:
-                        continue
-                    d = abs(f["center_y"] - center_y)
-                    if d < bestd:
-                        bestd = d
-                        nearest = f
+        # ---------------- FINAL RECONCILIATION ----------------
+        for (brand, size), front_count in front_counts.items():
+            cap_count = cap_counts.get(brand, 0)
+            final_units = max(front_count, cap_count)
 
-                if not nearest:
-                    continue
+            classid = exemplar_front[(brand, size)]
 
-                size = extract_size(nearest["classname"])
-                if not size:
-                    continue
-
-                inferred_classid = None
-                for cid, cname in class_names.items():
-                    if cap_brand in cname.lower() and size in cname:
-                        inferred_classid = cid
-                        break
-
-                if inferred_classid is None:
-                    continue
-
-                key = (image_name, inferred_classid)
-                if key in inferred_keys:
-                    continue
-                inferred_keys.add(key)
-
+            for _ in range(final_units):
                 prediction_data.append({
                     "imagefilename": image_name,
-                    "classid": inferred_classid,
-                    "inference": min(conf, 0.1),
-                    "x1": x1,
-                    "x2": x2,
-                    "y1": y1,
-                    "y2": y2
+                    "classid": classid,
+                    "inference": 0.1 if cap_count > front_count else 0.25,
+                    "x1": 0.0,
+                    "x2": 0.0,
+                    "y1": 0.0,
+                    "y2": 0.0
                 })
 
-                if storeid is not None:
-                    store_total_counts[storeid] += 1
-                    store_inferred_counts[storeid] += 1
+            if storeid is not None:
+                store_total_counts[storeid] += final_units
+                if cap_count > front_count:
+                    store_inferred_counts[storeid] += final_units
 
     # --------------------------------------------------
-    # STORE-LEVEL LOGGING (NEW)
+    # STORE-LEVEL LOGGING
     # --------------------------------------------------
     logger.info("===== STORE-LEVEL INFERENCE SUMMARY =====")
-    for sid in sorted(store_total_counts.keys()):
+    for sid in sorted(store_total_counts):
         inferred = store_inferred_counts.get(sid, 0)
-        total = store_total_counts.get(sid, 0)
+        total = store_total_counts[sid]
         logger.info(
             f"STORE {sid} | Inferred (caps): {inferred} | "
             f"Total products: {total} | Ratio: {inferred}/{total}"
@@ -253,13 +218,13 @@ def run_yolo_predictions(
     logger.info("========================================")
 
     # --------------------------------------------------
-    # CSV OUTPUT (UNCHANGED)
+    # CSV OUTPUT
     # --------------------------------------------------
     df = pd.DataFrame(prediction_data)
     df.to_csv(csv_output_path, index=False)
 
     # --------------------------------------------------
-    # S3 UPLOAD (UNCHANGED)
+    # S3 UPLOAD
     # --------------------------------------------------
     if save_dir:
         for fn in os.listdir(save_dir):
@@ -270,7 +235,7 @@ def run_yolo_predictions(
                 )
 
     # --------------------------------------------------
-    # DB INSERTS → orgi.cyclecount_staging (UNCHANGED)
+    # DB INSERTS (UNCHANGED)
     # --------------------------------------------------
     clear_cyclecount_staging(cur, cyclecountid)
     conn.commit()
@@ -300,10 +265,10 @@ def run_yolo_predictions(
                     s3_bucket_name=s3_bucket_name,
                     s3path_actual_file=s3_key,
                     s3path_annotated_file=f"{s3_cycle_folder}/{imagefilename}",
-                    x1=float(row["x1"]),
-                    x2=float(row["x2"]),
-                    y1=float(row["y1"]),
-                    y2=float(row["y2"]),
+                    x1=0.0,
+                    x2=0.0,
+                    y1=0.0,
+                    y2=0.0,
                     storename=storename,
                     storeid=storeid
                 )
