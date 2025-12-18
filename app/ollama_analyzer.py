@@ -151,7 +151,7 @@ def run_ollama_analysis(
     rowid = 1
 
     for (_, storename, filename, local_path, s3_key, storeid, subcategory_id) in image_paths:
-        if subcategory_id in [601, 602, 603, 604]:
+        if subcategory_id in [601, 602, 603, 604, 605]:
             continue
         if not os.path.exists(local_path):
             continue
