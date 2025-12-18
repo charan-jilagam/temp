@@ -211,38 +211,55 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             x1, y1, x2, y2 = box.xyxy[0]
                             cap_detections.append({
                                 "conf": float(box.conf[0]),
-                                "center_y": int((y1 + y2) * sh / 2)
+                                "center_y": int((y1 + y2) * sh / 2),
+                                "name": shelf_class_names.get(cls_id, "")
                             })
 
                     # --------------------------------------------------
-                    # Cap → nearest front SKU inference
+                    # Brand-level reconciliation (caps vs fronts)
                     # --------------------------------------------------
                     def extract_brand(name):
                         lname = name.lower()
                         for b in ["coke", "sprite", "fanta", "kinley", "pepsi"]:
                             if b in lname:
                                 return b
-                        return "other"
-
-                    inferred_skus = []
-
+                        return None
+                    
+                    # count fronts per brand
+                    brand_fronts = defaultdict(list)
+                    for sku in front_skus:
+                        brand = extract_brand(sku["name"])
+                        if brand:
+                            brand_fronts[brand].append(sku)
+                    
+                    # count caps per brand
+                    brand_caps = defaultdict(int)
                     for cap in cap_detections:
-                        closest = None
-                        bestd = 1e9
-                        for front in front_skus:
-                            d = abs(front["center_y"] - cap["center_y"])
-                            if d < bestd:
-                                bestd = d
-                                closest = front
-                        if closest:
-                            inferred_skus.append({
-                                **closest,
-                                "conf": cap["conf"],
-                                "inferred": True
+                        cap_name = cap.get("name", "").lower()
+                        for b in ["coke", "sprite", "fanta", "kinley", "pepsi"]:
+                            if b in cap_name:
+                                brand_caps[b] += 1
+                                break
+                    
+                                        
+                    final_skus = []
+                    
+                    for brand, fronts in brand_fronts.items():
+                        front_count = len(fronts)
+                        cap_count = brand_caps.get(brand, 0)
+                    
+                        final_count = max(front_count, cap_count)
+                    
+                        exemplar = fronts[0]  # size + class fixed by front
+                    
+                        for _ in range(final_count):
+                            final_skus.append({
+                                **exemplar,
+                                "conf": exemplar["conf"] if front_count >= cap_count else 0.1
                             })
-
-                    final_skus = front_skus + inferred_skus
+                    
                     shelf_sku_map = {shelf_index: final_skus}
+
 
                     # --------------------------------------------------
                     # Annotated image (SKU view)
