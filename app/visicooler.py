@@ -106,6 +106,12 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         iterationid = cur.fetchone()[0] + 1
 
         for sid, rows in store_images.items():
+           # 🔑 generate ONCE per store
+            iterationtranid = (
+                int(rows[0][0])
+                if rows[0][0] and str(rows[0][0]).isdigit()
+                else int(datetime.now().timestamp() * 1000) % 100000000
+            )
             for stored_row in rows:
                 fileseqid, storename, filename, local_path, s3_key, final_storeid, subcat_norm = stored_row
 
@@ -113,12 +119,6 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     continue
 
                 try:
-                    iterationtranid = (
-                        int(fileseqid)
-                        if fileseqid and str(fileseqid).isdigit()
-                        else int(datetime.now().timestamp() * 1000) % 100000000
-                    )
-
                     image = cv2.imread(local_path)
                     if image is None:
                         continue
