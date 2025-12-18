@@ -7,6 +7,7 @@ from datetime import datetime
 import ultralytics
 import torch
 from app.config_loader import load_config
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -116,6 +117,12 @@ def run_yolo_predictions(
         return cyclecountid, False
 
     # --------------------------------------------------
+    # Store-level counters (NEW)
+    # --------------------------------------------------
+    store_total_counts = defaultdict(int)
+    store_inferred_counts = defaultdict(int)
+
+    # --------------------------------------------------
     # BASE MODEL → FRONT FACING SKUs
     # --------------------------------------------------
     results = base_model.predict(source=filtered_images, conf=0.25, save=True)
@@ -125,6 +132,13 @@ def run_yolo_predictions(
 
     for r in results:
         image_name = os.path.basename(r.path)
+
+        # resolve storeid once per image
+        storeid = None
+        for _, _, fname, _, _, sid, _ in image_paths:
+            if fname == image_name:
+                storeid = sid
+                break
 
         fronts = []
         inferred_keys = set()
@@ -158,7 +172,10 @@ def run_yolo_predictions(
                 "y2": y2
             })
 
-        # -------- CAP MODEL --------
+            if storeid is not None:
+                store_total_counts[storeid] += 1
+
+        # -------- CAP MODEL → INFERENCE --------
         cap_results = cap_model.predict(source=[r.path], conf=0.1, save=False)
 
         for cr in cap_results:
@@ -177,7 +194,6 @@ def run_yolo_predictions(
                 center_y = (y1 + y2) / 2
                 conf = float(box.conf[0])
 
-                # nearest front of same brand
                 nearest = None
                 bestd = 1e9
                 for f in fronts:
@@ -218,6 +234,23 @@ def run_yolo_predictions(
                     "y1": y1,
                     "y2": y2
                 })
+
+                if storeid is not None:
+                    store_total_counts[storeid] += 1
+                    store_inferred_counts[storeid] += 1
+
+    # --------------------------------------------------
+    # STORE-LEVEL LOGGING (NEW)
+    # --------------------------------------------------
+    logger.info("===== STORE-LEVEL INFERENCE SUMMARY =====")
+    for sid in sorted(store_total_counts.keys()):
+        inferred = store_inferred_counts.get(sid, 0)
+        total = store_total_counts.get(sid, 0)
+        logger.info(
+            f"STORE {sid} | Inferred (caps): {inferred} | "
+            f"Total products: {total} | Ratio: {inferred}/{total}"
+        )
+    logger.info("========================================")
 
     # --------------------------------------------------
     # CSV OUTPUT (UNCHANGED)
