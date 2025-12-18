@@ -164,7 +164,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                     # --------------------------------------------------
                     # FRONT SKU DETECTION (SKU MODEL ONLY)
                     # --------------------------------------------------
-                    sku_results = sku_model(local_path, conf=0.35)
+                    sku_results = sku_model(local_path, conf=0.3)
                     front_skus = []
 
                     for result in sku_results:
