@@ -125,7 +125,7 @@ def run_yolo_predictions(
     # --------------------------------------------------
     # INFERENCE
     # --------------------------------------------------
-    results = base_model.predict(source=filtered_images, conf=0.25, save=True)
+    results = base_model.predict(source=filtered_images, conf=0.3, save=True)
     save_dir = results[0].save_dir if results else None
 
     prediction_data = []
@@ -192,7 +192,7 @@ def run_yolo_predictions(
                 prediction_data.append({
                     "imagefilename": image_name,
                     "classid": classid,
-                    "inference": 0.15 if cap_count > front_count else 0.25,
+                    "inference": 0.15 if cap_count > front_count else 0.3,
                     "x1": 0.0,
                     "x2": 0.0,
                     "y1": 0.0,
