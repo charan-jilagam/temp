@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
-# Utility helpers (UNCHANGED)
+# Utility helpers
 # --------------------------------------------------
 
 def should_ignore_class(cls_id: int, class_names: list) -> bool:
@@ -75,7 +75,7 @@ def run_yolo_predictions(
     )
 
     # --------------------------------------------------
-    # Cyclecount handling (UNCHANGED)
+    # Cyclecount handling
     # --------------------------------------------------
     if cyclecountid_override is not None:
         cyclecountid = cyclecountid_override
@@ -140,10 +140,10 @@ def run_yolo_predictions(
                 storeid = sid
                 break
 
-        # (brand, size) → counts
-        front_counts = defaultdict(int)
+        # ---------------- STORAGE ----------------
+        front_boxes = defaultdict(list)   # (brand, size) → list of box dicts
+        brand_boxes = defaultdict(list)   # brand → list of box dicts
         cap_counts = defaultdict(int)
-        exemplar_front = {}
 
         # ---------------- FRONT SKUs ----------------
         for box in r.boxes:
@@ -160,9 +160,19 @@ def run_yolo_predictions(
             if not brand or not size:
                 continue
 
-            key = (brand, size)
-            front_counts[key] += 1
-            exemplar_front[key] = cid
+            x1, y1, x2, y2 = map(float, box.xyxy[0])
+
+            entry = {
+                "classid": cid,
+                "inference": 0.3,
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2
+            }
+
+            front_boxes[(brand, size)].append(entry)
+            brand_boxes[brand].append(entry)
 
         # ---------------- CAPS ----------------
         cap_results = cap_model.predict(source=[r.path], conf=0.15, save=False)
@@ -178,40 +188,41 @@ def run_yolo_predictions(
                 if not brand:
                     continue
 
-                # caps don't carry size → size comes from nearest front later
                 cap_counts[brand] += 1
 
         # ---------------- FINAL RECONCILIATION ----------------
-        # group fronts by brand
-        brand_front_totals = defaultdict(int)
-        brand_exemplar = {}
-        
-        for (brand, size), count in front_counts.items():
-            brand_front_totals[brand] += count
-            if brand not in brand_exemplar:
-                brand_exemplar[brand] = exemplar_front[(brand, size)]
-        
-        for brand, front_total in brand_front_totals.items():
+        for brand, front_list in brand_boxes.items():
+            front_total = len(front_list)
             cap_total = cap_counts.get(brand, 0)
             final_units = max(front_total, cap_total)
-        
-            classid = brand_exemplar[brand]
-        
-            for _ in range(final_units):
+
+            # real front detections
+            for entry in front_list:
                 prediction_data.append({
                     "imagefilename": image_name,
-                    "classid": classid,
-                    "inference": 0.15 if cap_total > front_total else 0.3,
-                    "x1": 0.0,
-                    "x2": 0.0,
-                    "y1": 0.0,
-                    "y2": 0.0
+                    **entry
                 })
-        
+
+            # inferred via caps
+            extra = final_units - front_total
+            if extra > 0 and front_list:
+                exemplar = front_list[0]
+
+                for _ in range(extra):
+                    prediction_data.append({
+                        "imagefilename": image_name,
+                        "classid": exemplar["classid"],
+                        "inference": 0.15,
+                        "x1": exemplar["x1"],
+                        "y1": exemplar["y1"],
+                        "x2": exemplar["x2"],
+                        "y2": exemplar["y2"]
+                    })
+
             if storeid is not None:
                 store_total_counts[storeid] += final_units
                 if cap_total > front_total:
-                    store_inferred_counts[storeid] += final_units
+                    store_inferred_counts[storeid] += extra
 
     # --------------------------------------------------
     # STORE-LEVEL LOGGING
@@ -244,7 +255,7 @@ def run_yolo_predictions(
                 )
 
     # --------------------------------------------------
-    # DB INSERTS (UNCHANGED)
+    # DB INSERTS
     # --------------------------------------------------
     clear_cyclecount_staging(cur, cyclecountid)
     conn.commit()
@@ -274,10 +285,10 @@ def run_yolo_predictions(
                     s3_bucket_name=s3_bucket_name,
                     s3path_actual_file=s3_key,
                     s3path_annotated_file=f"{s3_cycle_folder}/{imagefilename}",
-                    x1=0.0,
-                    x2=0.0,
-                    y1=0.0,
-                    y2=0.0,
+                    x1=float(row["x1"]),
+                    y1=float(row["y1"]),
+                    x2=float(row["x2"]),
+                    y2=float(row["y2"]),
                     storename=storename,
                     storeid=storeid
                 )
