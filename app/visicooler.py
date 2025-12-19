@@ -223,9 +223,8 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             if b in lname:
                                 return b
                         return "other"
-
+                    #
                     inferred_skus = []
-
                     for cap in cap_detections:
                         closest = None
                         bestd = 1e9
@@ -240,15 +239,21 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 "conf": cap["conf"],
                                 "inferred": True
                             })
-
-                    final_skus = front_skus + inferred_skus
+                    
+                    #choose the dominant interpretation (no double counting)
+                    if len(inferred_skus) > len(front_skus):
+                        final_skus = inferred_skus
+                    else:
+                        final_skus = front_skus
+                    
                     shelf_sku_map = {shelf_index: final_skus}
+                    
 
                     # --------------------------------------------------
                     # Annotated image (SKU view)
                     # --------------------------------------------------
                     try:
-                        rendered = sku_results[0].plot()
+                        rendered = cap_results[0].plot()
                         out = os.path.join(output_folder_path, f"segmented_{filename}")
                         cv2.imwrite(out, rendered)
                         s3_handler.upload_file_to_s3(
