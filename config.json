@@ -27,6 +27,7 @@
     "image_folder_s3": "STORE_IMAGES/",
     "output_s3_folder": "ModelResults/",
     "activation_yolo_model": "data/activation_best.pt",
+    "activation_conf_threshold": 0.3,
     "hybrid_mode": true,
     "output_csv": "outputs/ollama_analysis_results.csv",
     "class_ids_path": "data/class_ids.json",
