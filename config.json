@@ -26,7 +26,7 @@
   "ollama_config": {
     "image_folder_s3": "STORE_IMAGES/",
     "output_s3_folder": "ModelResults/",
-    "activation_yolo_model": "",
+    "activation_yolo_model": "data/activation_best.pt",
     "hybrid_mode": true,
     "output_csv": "outputs/ollama_analysis_results.csv",
     "class_ids_path": "data/class_ids.json",
@@ -49,6 +49,6 @@
     "model_path": "data/capmodelnew.pt",
     "output_folder_path": "outputs/segmented_images/",
     "shelf_class_id": 80,
-    "conf_threshold": 0.15
+    "conf_threshold": 0.12
   }
 }

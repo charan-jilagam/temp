@@ -156,18 +156,38 @@ def run_ollama_analysis(
         if not os.path.exists(local_path):
             continue
 
-        ollama_output = analyze_image(
-            local_path, ollama_host, prompts, class_ids, model_name
-        )
-
-        yolo_hits = set()
+        # Run activation YOLO to check for poster, dps, menu_board
+        activation_detected = set()
         if activation_yolo_model:
-            yolo_hits = run_activation_yolo(local_path, activation_yolo_model)
+            activation_detected = run_activation_yolo(local_path, activation_yolo_model)
 
-        for yolo_name in yolo_hits:
-            for cid in class_ids:
-                if yolo_name in get_classtext(cur, int(cid)).lower():
-                    ollama_output[str(cid)] = "Y"
+        # Map detected classes to specific class IDs
+        activation_mappings = {
+            "Poster": "1019",
+            "DPS": "1053",
+            "Menu Board": "1023"
+        }
+
+        skip_ollama = False
+        ollama_output = {}
+        for detected_name in activation_detected:
+            if detected_name in activation_mappings:
+                cid = activation_mappings[detected_name]
+                ollama_output[cid] = "Y"
+                skip_ollama = True
+
+        if not skip_ollama:
+            # Run full Ollama analysis
+            ollama_output = analyze_image(
+                local_path, ollama_host, prompts, class_ids, model_name
+            )
+
+        # Additional logic for yolo_hits (existing code, but may be redundant now)
+        # if not skip_ollama:
+        #     for yolo_name in activation_detected:
+        #         for cid in class_ids:
+        #             if yolo_name in get_classtext(cur, int(cid)).lower():
+        #                 ollama_output[str(cid)] = "Y"
 
         if ollama_output.get("1001") == "Y":
             cur.execute("""
