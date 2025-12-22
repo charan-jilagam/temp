@@ -1,0 +1,9 @@
+# AWS credentials & secrets
+aws_credentials.json
+.env
+*.pem
+*.key
+
+# Optional (recommended)
+__pycache__/
+*.pyc
