@@ -1,7 +1,1 @@
 *.pt filter=lfs diff=lfs merge=lfs -text
-data/yolov8l_v1.2_4852.pt filter=lfs diff=lfs merge=lfs -text
-data/yolov8l filter=lfs diff=lfs merge=lfs -text
-latest.pt filter=lfs diff=lfs merge=lfs -text
-data/yolov8l[[:space:]]latest.pt filter=lfs diff=lfs merge=lfs -text
-.pt filter=lfs diff=lfs merge=lfs -text
-data/capmodelnew.pt filter=lfs diff=lfs merge=lfs -text
