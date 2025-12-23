@@ -175,7 +175,7 @@ def run_yolo_predictions(
             brand_boxes[brand].append(entry)
 
         # ---------------- CAPS ----------------
-        cap_results = cap_model.predict(source=[r.path], conf=0.14, save=False)
+        cap_results = cap_model.predict(source=[r.path], conf=0.12, save=False)
 
         for cr in cap_results:
             for box in cr.boxes:
