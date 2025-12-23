@@ -212,7 +212,7 @@ def run_yolo_predictions(
                     prediction_data.append({
                         "imagefilename": image_name,
                         "classid": exemplar["classid"],
-                        "inference": 0.14,
+                        "inference": 0.12,
                         "x1": exemplar["x1"],
                         "y1": exemplar["y1"],
                         "x2": exemplar["x2"],
