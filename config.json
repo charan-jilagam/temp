@@ -50,6 +50,6 @@
     "model_path": "data/capmodelnew.pt",
     "output_folder_path": "outputs/segmented_images/",
     "shelf_class_id": 80,
-    "conf_threshold": 0.25
+    "conf_threshold": 0.20
   }
 }
