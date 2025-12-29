@@ -106,7 +106,7 @@
 #         iterationid = cur.fetchone()[0] + 1
 
 #         for sid, rows in store_images.items():
-#            # 🔑 generate ONCE per store
+#            # 🔒 generate ONCE per store
 #             iterationtranid = (
 #                 int(rows[0][0])
 #                 if rows[0][0] and str(rows[0][0]).isdigit()
@@ -264,7 +264,7 @@
 #                         pass
 
 #                     # --------------------------------------------------
-#                     # DB INSERTS (UNCHANGED)
+#                     # DB INSERTS (UPDATED WITH imagefilename)
 #                     # --------------------------------------------------
 #                     for shelf_id, sku_list in shelf_sku_map.items():
 #                         productsequenceno = 1
@@ -282,24 +282,26 @@
 #                                 datetime.now()
 #                             ))
 
+#                             # ✅ ADDED imagefilename to INSERT
 #                             cur.execute("""
 #                                 INSERT INTO orgi.coolermetricstransaction
 #                                 (iterationid, iterationtranid, shelfnumber,
 #                                  productsequenceno, productclassid,
-#                                  x1, x2, y1, y2, confidence)
-#                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+#                                  x1, x2, y1, y2, confidence, imagefilename)
+#                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 #                             """, (
 #                                 iterationid, iterationtranid,
 #                                 shelf_id, productsequenceno,
 #                                 sku["class_id"],
 #                                 x1, x2, y1, y2,
-#                                 sku["conf"]
+#                                 sku["conf"],
+#                                 filename  # ✅ ADDED imagefilename here
 #                             ))
 #                             productsequenceno += 1
 
 #                     conn.commit()
 #                     logger.info(
-#                         f"Inserted store={final_storeid}, shelf={shelf_index}, products={len(final_skus)}"
+#                         f"Inserted store={final_storeid}, shelf={shelf_index}, products={len(final_skus)}, image={filename}"
 #                     )
 
 #                 except Exception as e:
@@ -311,7 +313,6 @@
 #     except Exception as e:
 #         logger.error(f"Fatal visicooler error: {e}")
 #         raise
-
 
 
 import os
@@ -356,14 +357,16 @@ def upload_to_visibilitydetails(conn, cur, records, cyclecountid):
 def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_folder_path, cyclecountid):
     try:
         # --------------------------------------------------
-        # Model declarations (BOTH MODELS ARE USED)
+        # Model declarations (THREE MODELS ARE USED)
         # --------------------------------------------------
         shelf_model_path = config['visicooler_config']['caps_model_path']   # caps only
         sku_model_path   = config['yolo_config']['model_path']             # front SKUs only
+        annotation_model_path = config['visicooler_config']['model_path']   # for annotations (capmodelnew.pt)
         conf_threshold   = config['visicooler_config']['conf_threshold']
 
         shelf_model = YOLO(shelf_model_path)
         sku_model   = YOLO(sku_model_path)
+        annotation_model = YOLO(annotation_model_path)  # ✅ NEW: For generating annotated images
 
         sku_class_names   = sku_model.names
         shelf_class_names = shelf_model.names
@@ -422,7 +425,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
         iterationid = cur.fetchone()[0] + 1
 
         for sid, rows in store_images.items():
-           # 🔒 generate ONCE per store
+            # 🔒 generate ONCE per store
             iterationtranid = (
                 int(rows[0][0])
                 if rows[0][0] and str(rows[0][0]).isdigit()
@@ -539,7 +542,7 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                             if b in lname:
                                 return b
                         return "other"
-                    #
+                    
                     inferred_skus = []
                     for cap in cap_detections:
                         closest = None
@@ -556,31 +559,32 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 "inferred": True
                             })
                     
-                    #choose the dominant interpretation (no double counting)
+                    # choose the dominant interpretation (no double counting)
                     if len(inferred_skus) > len(front_skus):
                         final_skus = inferred_skus
                     else:
                         final_skus = front_skus
                     
                     shelf_sku_map = {shelf_index: final_skus}
-                    
 
                     # --------------------------------------------------
-                    # Annotated image (SKU view)
+                    # Annotated image (using capmodelnew.pt)
+                    # ✅ DEFINE S3 PATH BEFORE UPLOAD
                     # --------------------------------------------------
+                    s3path_annotated = f"ModelResults/Visicooler_{cyclecountid}/segmented_{filename}"
+                    
                     try:
-                        rendered = cap_results[0].plot()
+                        # ✅ Run capmodelnew.pt model for annotation
+                        annotation_results = annotation_model(local_path, conf=conf_threshold)
+                        rendered = annotation_results[0].plot()
                         out = os.path.join(output_folder_path, f"segmented_{filename}")
                         cv2.imwrite(out, rendered)
-                        s3_handler.upload_file_to_s3(
-                            out,
-                            f"ModelResults/Visicooler_{cyclecountid}/segmented_{filename}"
-                        )
+                        s3_handler.upload_file_to_s3(out, s3path_annotated)
                     except Exception:
                         pass
 
                     # --------------------------------------------------
-                    # DB INSERTS (UPDATED WITH imagefilename)
+                    # DB INSERTS (✅ UPDATED WITH S3 PATHS)
                     # --------------------------------------------------
                     for shelf_id, sku_list in shelf_sku_map.items():
                         productsequenceno = 1
@@ -598,20 +602,23 @@ def run_visicooler_analysis(image_paths, config, s3_handler, conn, cur, output_f
                                 datetime.now()
                             ))
 
-                            # ✅ ADDED imagefilename to INSERT
+                            # ✅ UPDATED: Added imagefilename, s3path_actual_file, s3path_annotated_file
                             cur.execute("""
                                 INSERT INTO orgi.coolermetricstransaction
                                 (iterationid, iterationtranid, shelfnumber,
                                  productsequenceno, productclassid,
-                                 x1, x2, y1, y2, confidence, imagefilename)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 x1, x2, y1, y2, confidence, imagefilename,
+                                 s3path_actual_file, s3path_annotated_file)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             """, (
                                 iterationid, iterationtranid,
                                 shelf_id, productsequenceno,
                                 sku["class_id"],
                                 x1, x2, y1, y2,
                                 sku["conf"],
-                                filename  # ✅ ADDED imagefilename here
+                                filename,           # ✅ imagefilename
+                                s3_key,            # ✅ s3path_actual_file (original)
+                                s3path_annotated   # ✅ s3path_annotated_file (segmented)
                             ))
                             productsequenceno += 1
 
