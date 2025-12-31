@@ -30,16 +30,6 @@ def close_db_connection(conn, cur):
     except Exception as e:
         logger.error(f"Failed to close database connection: {e}")
 
-def get_max_cyclecountid(cur):
-    """Get the maximum cyclecountid from orgi.visibilitydetails."""
-    try:
-        cur.execute("SELECT MAX(cyclecountid) FROM orgi.visibilitydetails")
-        result = cur.fetchone()
-        return result[0] if result[0] is not None else 0
-    except Exception as e:
-        logger.error(f"Failed to get max cyclecountid: {e}")
-        raise
-
 def get_max_stagingid(cur):
     """Get the maximum stagingid from orgi.visibilityitemsstaging."""
     try:
@@ -101,7 +91,8 @@ def get_classtext(cur, classid):
         1049: "All SKUs of Coca Cola Company and Pepsico - Number of Warm Facings",
         1050: "All SKUs of Coca Cola Company and Pepsico - Share of Chilled Facings",
         1051: "All SKUs of Coca Cola Company and Pepsico - Share of Warm Facings",
-        1052: "All SKUs of Coca Cola Company and Pepsico - Present, but no facings"
+        1052: "All SKUs of Coca Cola Company and Pepsico - Present, but no facings",
+        1053: "Other Elements branded by Coca-Cola - DPS"
     }
     if classid in predefined_mappings:
         return predefined_mappings[classid]
@@ -112,53 +103,6 @@ def get_classtext(cur, classid):
     except Exception as e:
         logger.error(f"Failed to get classtext for classid {classid}: {e}")
         return 'Unknown'
-
-def clear_cyclecount_staging(cur, cyclecountid):
-    """Clear all records from orgi.cyclecount_staging for a given cyclecountid."""
-    try:
-        cur.execute(
-            """
-            DELETE FROM orgi.cyclecount_staging
-            WHERE cyclecountid = %s
-            """,
-            (cyclecountid,)
-        )
-        deleted_rows = cur.rowcount
-        logger.info(f"Deleted {deleted_rows} rows from orgi.cyclecount_staging for cyclecountid {cyclecountid}.")
-        return deleted_rows
-    except Exception as e:
-        logger.error(f"Failed to clear staging data for cyclecountid {cyclecountid}: {e}")
-        raise
-
-def insert_yolo_prediction(cur, modelname, imagefilename, classid, inference, modelrun, cyclecountid, rowid, s3_bucket_name, s3path_actual_file, s3path_annotated_file, x1, x2, y1, y2, storename, storeid):
-    """Insert YOLO prediction into orgi.cyclecount_staging."""
-    try:
-        insert_query = """
-        INSERT INTO orgi.cyclecount_staging
-        (cyclecountid, rowid, imagefilename, classid, inference, modelrun, processed_flag, x1, x2, y1, y2, storeid, storename, s3path_actual_file, s3path_annotated_file)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cur.execute(insert_query, (
-            cyclecountid,
-            rowid,
-            imagefilename,
-            classid,
-            inference,
-            modelrun,
-            'N',
-            x1,
-            x2,
-            y1,
-            y2,
-            storeid,
-            storename,
-            s3path_actual_file,
-            s3path_annotated_file
-        ))
-        logger.info(f"Inserted YOLO prediction for image {imagefilename} with rowid {rowid} into orgi.cyclecount_staging.")
-    except Exception as e:
-        logger.error(f"Failed to insert YOLO prediction for image {imagefilename}: {e}")
-        raise
 
 def insert_ollama_results(cur, stagingid, results, modelname, s3_annotated_folder, image_paths):
     """Insert Ollama results into orgi.visibilityitemsstaging table."""

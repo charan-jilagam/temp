@@ -8,7 +8,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def upload_ollama_results(csv_path, db_config, modelname, image_paths, s3_annotated_folder, cyclecountid, s3_handler):
-    """Upload Ollama results to orgi.visibilityitemsstaging and update orgi.visibilitydetails."""
+    """
+    Upload Ollama results to orgi.visibilityitemsstaging and update orgi.visibilitydetails.
+    This function is now optional as ollama_analyzer.py handles DB insertion directly.
+    """
     conn = None
     cur = None
     try:
@@ -49,6 +52,7 @@ def upload_ollama_results(csv_path, db_config, modelname, image_paths, s3_annota
         else:
             logger.warning("No valid Ollama results to upload to database.")
 
+        # Process visicooler-specific data
         image_data = defaultdict(lambda: {
             'numshelf': 0,
             'numpureshelf': 0,
@@ -95,7 +99,7 @@ def upload_ollama_results(csv_path, db_config, modelname, image_paths, s3_annota
                 image_data[image]['present_no_facings'] = value if value in ['Y', 'N'] else 'N'
 
         visicooler_records = []
-        image_fnames = {fname for _, _, fname, _, _, _ in image_paths}
+        image_fnames = {fname for _, _, fname, _, _, _, _ in image_paths}
         for image, data in image_data.items():
             if image not in image_fnames:
                 logger.warning(f"Image {image} not found in image_paths. Skipping.")
